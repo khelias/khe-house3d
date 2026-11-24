@@ -1,0 +1,353 @@
+// The drawing kit of one mount: colours, materials, geometry helpers and the list of what
+// dispose() frees. createKit() runs once per mount, so two mounts never share a material or a
+// texture, and disposing one never frees the other's.
+const COLORS = {
+  bg: '#060c1b', line: '#6fe3ff', lineSoft: '#5d86d8', roof: '#9aa6ff', roofFill: '#252f6e', wall: '#1b2c5e',
+  glass: '#5fd8ff', floor: '#0e1a3c', warm: '#6b4a1c', hover: '#24407f', sel: '#2b5aa0', amber: '#ffc56e',
+  teal: '#47d9c4', hedge: '#123b45', furniture: '#7f9bff', gridMajor: '#2a4685', gridMinor: '#172a55',
+  ink: '#e4ecff', alert: '#ff8b7b',
+  // the future layer's tint in both styles: a clear violet, apart from every other colour here
+  future: '#b37bff'
+};
+
+// The real style's default surfaces, which a model's look (geometry.look) overrides by name: a
+// light, matt architectural model. The walls are a plain light grey without trims, the roofs a
+// matt mid grey, and every frame, roof edge, the carport's panels and the pergola an off-white
+// (frame). Inside, the walls are light grey, the doors and their frames white, the living floors
+// light wood planks (planks()) and the wet rooms a grey tile (tiles()). The interior is drawn as an
+// architectural model: the walls' cut tops near black (cut), oak skirting, and the furniture in
+// white linen, a blue-grey fabric, light oak, a dark worktop and white-grey cabinets; an item of no
+// known kind is a warm grey block (furniture), apart from the walls. Fitted kitchens are light
+// fronts (kitchen) under a dark worktop (kitchenTop) with dark handles, steel and black glass, the
+// wall behind them light tiles (splashTiles()); a TV's screen, a rug and sheer curtains have their
+// own surfaces, a sofa a dark charcoal velvet. Fitted units, a vanity and a bookcase may instead be
+// anthracite or a painted white, carcass, fronts and top alike; toilets, basins and the bath are
+// glazed porcelain (sanitary), a mirror a light polished slab, a sauna stove's stones dark grey.
+// The deck is a grey-brown composite, the paving light grey concrete pavers with sandy joints
+// (their stones come from pavers()), the entrance step dark grey, the outdoor units white.
+// The bar fence and the gates are dark bars (bars()), the other fences a dark wire mesh
+// (wireMesh()). The play area is stained timber with a sand box, a mint slide and a dark nest
+// seat; the trampoline a green edge pad on a black mat with a black net.
+// The car and surroundings are plain stand-ins; outside the lot is a light base, like an
+// architectural model's. Snow (the winter layer) is a cool white.
+const REAL = {
+  cladding: '#e6e4df', roof: '#6e7377', frame: '#f0f0ed', unit: '#e4e4e0',
+  glass: '#9fb8c4', interior: '#e4e3df', door: '#f2f1ed', floor: '#cdbfa8', tile: '#9a9690', deck: '#8a8178', paving: '#c4c0b8',
+  lawn: '#64904a', outside: '#d8d6cc', hedge: '#355a32', crown: '#4f7a3a', trunk: '#5b4636',
+  fence: '#5a5d60', car: '#2f3336', neighbour: '#b9b6ae', road: '#6b6b68',
+  timber: '#8a6a4c', sand: '#d6c6a0', slide: '#9ed8c2', nest: '#3d4a5c', pad: '#3f8a4b', mat: '#202325',
+  net: '#151719', mesh: '#2c2f31', stone: '#56595b',
+  cut: '#2a2d30', skirting: '#c9a67c', linen: '#ecebe6', fabric: '#7d8792', oak: '#d6c2a2', worktop: '#3b3b3b',
+  cabinet: '#e6e5e0', furniture: '#a59f95',
+  kitchen: '#dcdad5', kitchenTop: '#575553', handle: '#2b2c2e', steel: '#a4a7aa', blackGlass: '#0e0f11', screen: '#07080a',
+  rug: '#b9b1a3', sheer: '#f4f2ec', sofa: '#4a4c51',
+  anthracite: '#3b3d40', white: '#eeeeeb', sanitary: '#f7f7f4', mirror: '#d3dade', stones: '#46484a', darkOak: '#7f6145', mediumOak: '#b08a62', shell: '#1c1d1f',
+  pot: '#d4cec4', leaf: '#4b7343', bloom: '#d98aa0', canvas: '#efe9de', artA: '#c4744e', artB: '#8da488', artC: '#d8b05c', artD: '#3e5a6f',
+  brushGround: '#c9ced3', brushA: '#5d7086', brushB: '#8e9caa', brushC: '#e2e5e8', brushD: '#3d4b5b',
+  snow: '#f1f4f7', spruce: '#2b4a2f', baubleRed: '#a8232c', baubleGold: '#d0a038', baubleSilver: '#c4c8cd'
+};
+// the cladding's boards (a look's cladding pattern 'boards'): about 12 cm wide, at 45 degrees
+// rising to the right, 0 horizontal or 90 upright, only their grooves drawn, on a 2 m tile of the
+// walls' metre UVs; BOARDS is the boards across the tile at 45, BOARDS_SQUARE at 0 and 90
+const BOARD_TILE = 2, BOARDS = 12, BOARDS_SQUARE = 17, BOARD_PX = 512, GROOVE = 0.045;
+// what a look leaves out: plain cladding, no trims
+const LOOK = { cladding: { pattern: 'plain' }, trims: { openings: false, corners: false, base: false } };
+const GLASS_OPACITY = 0.35, SHEER_OPACITY = 0.55;
+// the paving's stones: running-bond rows ROW deep of stones STONE long, the long joints waving
+// WAVE either way, on a PAVER_TILE m tile that holds whole rows and stones
+const PAVER_TILE = 0.9, STONE = 0.225, ROW = 0.1125, WAVE = 0.012, JOINT = 0.005, PAVER_PX = 512;
+// the mesh fence: vertical wires every 5 cm, horizontal ones every 20 cm, 4 mm thick, on a 0.2 m
+// tile; a faint veil between them so the mipmapped fence still reads from far off
+const MESH_TILE = 0.2, MESH_X = 0.05, WIRE = 0.004, MESH_PX = 256, MESH_VEIL = 26;
+const BAR_STEP = 0.12, BAR = 0.02, RAIL = 0.04;
+// the oak floor: rows of planks about PLANK wide along world z, each row of planks one of
+// PLANK_LENS long from a staggered start, all dividing the FLOOR_TILE m tile; a plank's shade
+// varies PLANK_VAR either way, the joint between them darker
+const FLOOR_TILE = 2.4, PLANK = 0.18, PLANK_LENS = [0.8, 1.2, 2.4], PLANK_VAR = 0.06, PLANK_PX = 1024, PLANK_JOINT = 0.003;
+// the wet rooms' wood-look tile: TILE_W by TILE_L, half-bond, a lighter grout joint
+const TILE_W = 0.2, TILE_L = 1.2, GROUT = 0.004, TILE_PX = 512;
+// the kitchen wall's tiles: SPLASH_W wide and SPLASH_H high in a straight stack, a soft grey joint
+const SPLASH_TILE = 1.2, SPLASH_W = 0.6, SPLASH_H = 0.3, SPLASH_JOINT = 0.003, SPLASH_PX = 512;
+
+// a model's look (geometry.look) resolved over the defaults: the surfaces' colours and finishes by
+// name, the cladding's pattern (boards at 45 degrees unless the look gives an angle) and the trims;
+// the card's model comes from HA's stored config, not only through the validator, so what is not a
+// known surface, finish or trim is left out rather than drawn
+function resolveLook(look) {
+  const given = Object.entries((look && look.surfaces) || {}).filter(([k]) => Object.hasOwn(REAL, k))
+    .map(([k, v]) => [k, typeof v === 'string' ? { color: v } : v]).filter(([, v]) => v && typeof v.color === 'string');
+  const colors = { ...REAL, ...Object.fromEntries(given.map(([k, v]) => [k, v.color])) };
+  const finish = Object.fromEntries(given.map(([k, v]) => [k, Object.fromEntries(['roughness', 'metalness'].filter(f => f in v).map(f => [f, v[f]]))]));
+  const c = (look && look.cladding) || LOOK.cladding;
+  const cladding = c.pattern === 'boards' ? { pattern: 'boards', angle_deg: [0, 45, 90].includes(c.angle_deg) ? c.angle_deg : 45 } : LOOK.cladding;
+  const trims = { ...LOOK.trims, ...Object.fromEntries(Object.entries((look && look.trims) || {}).filter(([k]) => Object.hasOwn(LOOK.trims, k)).map(([k, v]) => [k, v === true])) };
+  return { colors, finish, look: { cladding, trims } };
+}
+
+export function createKit(THREE, style = 'simple', look) {
+  const C = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, new THREE.Color(v)]));
+  const { colors, finish, look: resolved } = resolveLook(look);
+  const disposables = [];
+  const keep = x => (disposables.push(x), x);
+  // real style only: a new lit material on every call, so a floor tints alone and a fade on
+  // one group never reaches another's surfaces; o overrides, e.g. { transparent: true } for
+  // what fades (the lift, the car)
+  // what differs from a matt surface: whatever is polished takes the sky's sheen, the sofa's
+  // fabric none, and the sheer lets the window through; a look's own roughness and metalness win
+  const FINISH = {
+    glass: { transparent: true, opacity: GLASS_OPACITY, roughness: 0.15, side: THREE.DoubleSide },
+    kitchenTop: { roughness: 0.32 },
+    sofa: { roughness: 1 },
+    blackGlass: { roughness: 0.12 },
+    screen: { roughness: 0.12 },
+    steel: { roughness: 0.38, metalness: 0.65 },
+    sanitary: { roughness: 0.18 },
+    mirror: { roughness: 0.08, metalness: 0.2 },
+    baubleRed: { roughness: 0.25, metalness: 0.35 },
+    baubleGold: { roughness: 0.25, metalness: 0.6 },
+    baubleSilver: { roughness: 0.2, metalness: 0.7 },
+    sheer: { transparent: true, opacity: SHEER_OPACITY, side: THREE.DoubleSide, depthWrite: false, forceSinglePass: true }
+  };
+  const surface = style === 'real'
+    ? (name, o = {}) => keep(new THREE.MeshStandardMaterial({ color: new THREE.Color(colors[name]), roughness: 0.85, metalness: 0, ...FINISH[name], ...finish[name], ...o }))
+    : undefined;
+  const basic = o => keep(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, ...o }));
+  const lineMat = o => keep(new THREE.LineBasicMaterial({ transparent: true, ...o }));
+  function mats(tint) {
+    return {
+      wall: basic({ color: C.wall, opacity: 0.13, side: THREE.DoubleSide }),
+      edge: lineMat({ color: tint || C.line, opacity: 0.75 }),
+      glass: basic({ color: C.glass, opacity: 0.06, side: THREE.DoubleSide }),
+      glassEdge: lineMat({ color: C.glass, opacity: 0.6 }),
+      furn: basic({ color: C.wall, opacity: 0.2 }),
+      furnEdge: lineMat({ color: C.furniture, opacity: 0.45 })
+    };
+  }
+  const edges = (geo, mat, thresh) => new THREE.LineSegments(new THREE.EdgesGeometry(geo, thresh || 15), mat);
+
+  function box(group, mat, emat, [x0, z0, x1, z1], [y0, y1]) {
+    const geo = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    mesh.add(edges(geo, emat));
+    group.add(mesh);
+    return mesh;
+  }
+
+  // an upright prism on an outline [[x, z], ...], from y0 to y1
+  function prism(pts, y0, y1) {
+    const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z))), { depth: y1 - y0, bevelEnabled: false });
+    // shape y becomes world z, the extrusion runs down from y1
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, y1, 0);
+    return geo;
+  }
+
+  function canvasTexture(size, stops) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const x = cv.getContext('2d');
+    const gr = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    stops.forEach(([at, c]) => gr.addColorStop(at, c));
+    x.fillStyle = gr;
+    x.fillRect(0, 0, size, size);
+    const tex = keep(new THREE.CanvasTexture(cv));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // real style: [front, back], the board texture at the look's angle as seen on a wall's local +z
+  // face and its mirror for the -z face, so diagonal boards rise to the right on both; one pair per
+  // mount. A DataTexture, not a canvas: the engine tests run without a DOM
+  let boardPair;
+  function boards() {
+    if (boardPair) return boardPair;
+    const S = BOARD_PX, angle = resolved.cladding.angle_deg;
+    // across counts across the boards and wraps with the tile (i - j at 45, j rows at 0, i
+    // columns at 90); one shade, a thin groove between
+    const across = angle === 45 ? (i, j) => ((i - j + S) * BOARDS) / S : (i, j) => ((angle === 0 ? j : i) * BOARDS_SQUARE) / S;
+    const front = tileTexture(S, BOARD_TILE, (i, j) => {
+      const t = across(i, j), v = (t - Math.floor(t) < GROOVE ? 0.72 : 1) * 255;
+      return [v, v, v, 255];
+    });
+    const back = keep(front.clone());
+    back.repeat.x = -1 / BOARD_TILE;
+    back.needsUpdate = true;
+    return (boardPair = [front, back]);
+  }
+
+  // a repeating DataTexture of S x S pixels filled by px(i, j) -> [r, g, b, a], on a tile metres
+  // wide of metre UVs
+  function tileTexture(S, tile, px) {
+    const data = new Uint8Array(S * S * 4);
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) data.set(px(i, j), (j * S + i) * 4);
+    const tex = keep(new THREE.DataTexture(data, S, S));
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = 8;
+    tex.repeat.set(1 / tile, 1 / tile);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  // a stable pseudo-random 0..1 from two whole numbers, the same on every tile
+  const hash = (a, b) => {
+    const h = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+    return h - Math.floor(h);
+  };
+  const inJoint = (t, step, joint) => Math.min(t % step, step - (t % step)) < joint / 2;
+
+  // real style: the paving's stones, one texture per mount
+  let paverTex;
+  function pavers() {
+    if (paverTex) return paverTex;
+    const S = PAVER_PX, m = PAVER_TILE / S, rows = Math.round(PAVER_TILE / ROW), cols = Math.round(PAVER_TILE / STONE);
+    paverTex = tileTexture(S, PAVER_TILE, (i, j) => {
+      const u = i * m, v = j * m;
+      // the wave runs ROW long along u, so the tile's edges meet
+      const rv = (v + WAVE * Math.sin((2 * Math.PI * u) / ROW) + PAVER_TILE) % PAVER_TILE, r = Math.floor(rv / ROW);
+      const ou = (u + (r % 2) * (STONE / 2)) % PAVER_TILE, c = Math.floor(ou / STONE) % cols;
+      if (inJoint(rv, ROW, JOINT) || inJoint(ou, STONE, JOINT)) return [255, 255, 255, 255];
+      // a stone's shade from its row and column, the same on every tile
+      const g = Math.round(0.88 * (1 + 0.08 * (hash(r % rows, c) - 0.5)) * 255);
+      return [g, g, g, 255];
+    });
+    return paverTex;
+  }
+
+  // real style: the oak floor's planks, one texture per mount
+  let plankTex;
+  function planks() {
+    if (plankTex) return plankTex;
+    const S = PLANK_PX, m = FLOOR_TILE / S, rows = Math.round(FLOOR_TILE / PLANK), w = FLOOR_TILE / rows;
+    // each row's plank length and where its planks start, once per row, not per pixel
+    const lens = Array.from({ length: rows }, (_, r) => PLANK_LENS[Math.floor(hash(r, 1) * PLANK_LENS.length)]);
+    const starts = lens.map((len, r) => hash(r, 2) * len);
+    plankTex = tileTexture(S, FLOOR_TILE, (i, j) => {
+      // u runs along the planks: the texture's v, which the floors lay on world z
+      const u = (j + 0.5) * m, v = (i + 0.5) * m, r = Math.floor(v / w), len = lens[r];
+      const ou = (u + starts[r]) % FLOOR_TILE, c = Math.floor(ou / len);
+      if (inJoint(v, w, PLANK_JOINT) || inJoint(ou, len, PLANK_JOINT)) return [178, 178, 178, 255];
+      const g = Math.round(0.93 * (1 + 2 * PLANK_VAR * (hash(r, c + 3) - 0.5)) * 255);
+      return [g, g, g, 255];
+    });
+    return plankTex;
+  }
+
+  // real style: the wet rooms' tiles, one texture per mount
+  let wetTex;
+  function tiles() {
+    if (wetTex) return wetTex;
+    const S = TILE_PX, m = FLOOR_TILE / S;
+    wetTex = tileTexture(S, FLOOR_TILE, (i, j) => {
+      const u = (i + 0.5) * m, v = (j + 0.5) * m, r = Math.floor(v / TILE_W);
+      const ou = (u + (r % 2) * (TILE_L / 2)) % FLOOR_TILE, c = Math.floor(ou / TILE_L);
+      if (inJoint(v, TILE_W, GROUT) || inJoint(ou, TILE_L, GROUT)) return [255, 255, 255, 255];
+      const g = Math.round(0.86 * (1 + 0.08 * (hash(r, c + 7) - 0.5)) * 255);
+      return [g, g, g, 255];
+    });
+    return wetTex;
+  }
+
+  // real style: the kitchen wall's tiles, one texture per mount, to multiply a light surface
+  let splashTex;
+  function splashTiles() {
+    if (splashTex) return splashTex;
+    const S = SPLASH_PX, m = SPLASH_TILE / S;
+    splashTex = tileTexture(S, SPLASH_TILE, (i, j) => {
+      const u = (i + 0.5) * m, v = (j + 0.5) * m;
+      if (inJoint(u, SPLASH_W, SPLASH_JOINT) || inJoint(v, SPLASH_H, SPLASH_JOINT)) return [196, 195, 191, 255];
+      const g = Math.round(0.97 * (1 + 0.025 * (hash(Math.floor(v / SPLASH_H), Math.floor(u / SPLASH_W) + 11) - 0.5)) * 255);
+      return [g, g, g, 255];
+    });
+    return splashTex;
+  }
+
+  // real style: the mesh fence's wires, white where a wire is, alpha MESH_VEIL between
+  let meshTex;
+  function wireMesh() {
+    if (meshTex) return meshTex;
+    const S = MESH_PX, m = MESH_TILE / S;
+    const on = (t, step) => Math.min(t % step, step - (t % step)) < WIRE / 2;
+    meshTex = tileTexture(S, MESH_TILE, (i, j) => [255, 255, 255, on((i + 0.5) * m, MESH_X) || on((j + 0.5) * m, MESH_TILE) ? 255 : MESH_VEIL]);
+    return meshTex;
+  }
+
+  // real style: a bar fence span or gate leaf len long and h high along local +x, from the
+  // ground up: two rails and a bar every BAR_STEP, ends included; casts, takes no shadow
+  function bars(len, h, mat) {
+    const g = new THREE.Group();
+    [0.05, h].forEach(y => {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(len, RAIL, RAIL), mat);
+      r.position.set(len / 2, y, 0);
+      g.add(r);
+    });
+    const n = Math.max(1, Math.round(len / BAR_STEP)), im = new THREE.InstancedMesh(new THREE.BoxGeometry(BAR, h - 0.05, BAR), mat, n + 1);
+    const at = new THREE.Matrix4();
+    for (let i = 0; i <= n; i++) im.setMatrixAt(i, at.makeTranslation((len * i) / n, (0.05 + h) / 2, 0));
+    im.instanceMatrix.needsUpdate = true;
+    im.computeBoundingSphere();
+    g.add(im);
+    g.children.forEach(o => { o.castShadow = true; o.receiveShadow = false; });
+    return g;
+  }
+
+  // real style: box() without the outline
+  function solid(group, mat, [x0, z0, x1, z1], [y0, y1]) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat);
+    mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    group.add(mesh);
+    return mesh;
+  }
+
+  // real style: a level outline [[x, z], ...] with holes at height 0, facing up (shape y is -z,
+  // so the turn onto the ground keeps the face up)
+  function flatShape(pts, holes = []) {
+    const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+    holes.forEach(h => shape.holes.push(new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x, -z)))));
+    const geo = new THREE.ShapeGeometry(shape);
+    geo.rotateX(-Math.PI / 2);
+    return geo;
+  }
+
+  // real style: (night) -> sets each material's colour from its colour now towards low of it at
+  // night 1, for the land and neighbours beyond the lot; the function's day holds those colours,
+  // for a caller that changes one by day (the ground's snow)
+  function nightTint(materials, low) {
+    const day = materials.map(m => m.color.clone());
+    const tint = night => materials.forEach((m, i) => m.color.copy(day[i]).multiplyScalar(1 - (1 - low) * night));
+    tint.day = day;
+    return tint;
+  }
+
+  // scales every material's opacity under group from its first-seen value; sprites are left out
+  function applyFade(group, f) {
+    group.traverse(o => {
+      if (!o.material || o.isSprite) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => {
+        if (mt.userData.base === undefined) mt.userData.base = mt.opacity;
+        mt.opacity = mt.userData.base * f;
+      });
+    });
+    group.visible = f > 0.01;
+  }
+
+  const near = (a, b) => Math.abs(a - b) < 0.002;
+
+  // the stretches of [lo, hi] longer than min that no gap [a, b] covers; gaps sorted by a
+  function spans(lo, hi, gaps, min) {
+    const out = [];
+    let from = lo;
+    [...gaps, [hi, hi]].forEach(([a, b]) => {
+      a = Math.min(a, hi);
+      if (a - from > min) out.push([from, a]);
+      from = Math.max(from, b);
+    });
+    return out;
+  }
+
+  return { C, style, REAL: colors, look: resolved, disposables, keep, basic, lineMat, mats, edges, box, prism, canvasTexture, applyFade, nightTint, near, spans, surface, solid, flatShape, boards, pavers, planks, tiles, splashTiles, wireMesh, bars };
+}
