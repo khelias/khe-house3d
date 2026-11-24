@@ -7,18 +7,18 @@ The 3D house engine: a three.js scene drawn from a parametric house model, the
 model format and its validator, the standalone viewer build with its privacy
 scan, the device and tree placement page, and two made-up test houses. Why the
 engine is its own and how it is built: [ADR-001](docs/decisions/001-own-3d-engine.md).
-Why it has a repo of its own and how khe-home-assistant consumes it: [estate
-ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md).
+Why it has a repo of its own and how its consumers, khe-home-assistant and
+khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md).
 
 ## Commands
 
 - Setup once after cloning: `python3 -m venv .venv && .venv/bin/pip install
   ruff==0.17.0` (the version `ci.yml` pins).
 - `bash scripts/check.sh` is the whole check: `bash -n` on every
-  `scripts/*.sh`, `scripts/house3d-test.sh` (the model, build, scan and
-  placement tests, the engine tests in Node, a syntax check of every module),
-  the privacy scan when a real model is at hand (skipped in CI) and ruff lint
-  and format over `scripts/`. CI runs it with `RUFF=ruff`, the workspace
+  `scripts/*.sh`, `scripts/house3d-test.sh` (the model, build, scan,
+  placement and copy tests, the engine tests in Node, a syntax check of every
+  module), the privacy scan when a real model is at hand (skipped in CI) and
+  ruff lint and format over `scripts/`. CI runs it with `RUFF=ruff`, the workspace
   commit gate before each commit.
 - `python3 -I scripts/house3d_model.py --check FILE` validates a model.
 - `python3 -I scripts/house3d_viewer.py MODEL OUTDIR` builds the standalone
@@ -28,6 +28,9 @@ ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the
   moving devices, trees and future items and writes the changes back;
   `scripts/house3d-surroundings.py` writes a surroundings layer from ETAK;
   `scripts/house3d-vendor.sh <version>` vendors a three.js release.
+- `bash scripts/house3d-copy.sh <commit>`, run from a consumer's root, writes
+  that consumer's pinned copy; `--check` checks it. The script travels in the
+  copy.
 - `UPDATE_SNAPSHOT=1` (engine-core) and `UPDATE_BASELINE=1` (engine-geometry,
   engine-look) rewrite the simple-style snapshot and the geometry and look
   baselines instead of comparing.
@@ -42,13 +45,14 @@ scripts/           house3d_model.py (the model format: its docstring is the
                    format's reference; read, validate, merge layers),
                    house3d_viewer.py (viewer build and privacy scan),
                    house3d-place.py, house3d-surroundings.py, house3d-vendor.sh,
-                   house3d-test.sh, check.sh
+                   house3d-copy.sh (a consumer's copy), house3d-test.sh,
+                   check.sh
 tests/house3d/     made-up test houses (fixture-model.md, the one-storey house
                    the HA demo shows; fixture-twostorey.md, hip, gable and flat
                    roofs and an upper storey), the engine tests
                    (engine-*.test.mjs by area over engine-harness.mjs), the
                    simple-style snapshot, the geometry and look baselines,
-                   model, build and placement tests (Python unittest)
+                   model, build, placement and copy tests (Python unittest)
 docs/decisions/    this repo's decisions
 ```
 
@@ -67,15 +71,17 @@ docs/decisions/    this repo's decisions
    the rest through `ctx`, because a module loaded by a static import would
    come without the card's `?v=` and could stay stale in HA's cache. Their
    module scope holds constants only. The engine tests enforce it.
-4. **khe-home-assistant carries a pinned copy.** The engine files, the
-   validator, the viewer build, the harness and `fixture-model.md` are copied
-   there at the same paths by its `scripts/house3d-engine.sh <commit>` and
-   checked against its `house3d-engine.json`. A change here reaches the HA card
-   and the khe.ee/ha demo only when that copy is bumped, with the card's
-   version, so keep those paths and the harness's exports stable or change
-   both repos together. The test house carries the devices layer the demo
-   dashboard is built on: a demo that needs a new test device takes a commit
-   here and a new copy there.
+4. **Each consumer carries a pinned copy.** `scripts/house3d-copy.sh
+   <commit>` copies the paths a consumer's `house3d-engine.json` lists under
+   `include`, itself among them, at the same paths, and checks them against
+   that file's hashes; the consumers are khe-home-assistant and khe-makett,
+   and each one's `include` says what it takes. A change here reaches the
+   HA card and the khe.ee/ha demo only when that copy is bumped, with the
+   card's version, so keep those paths, the harness's exports and the
+   script's usage stable or change the repos together. The
+   test house carries the devices layer the demo dashboard is built on: a
+   demo that needs a new test device takes a commit here and a new copy
+   there.
 
 ## CI and automated writers
 

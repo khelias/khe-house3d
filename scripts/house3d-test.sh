@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The engine's tests: the model, build, scan and placement tests (Python unittest), the engine
+# The engine's tests: the model, build, scan, placement and copy tests (Python unittest), the engine
 # tests in Node (the engine-*.test.mjs files by area over engine-harness.mjs), and a syntax check
 # of every engine and test module (vendored three.js excepted).
 # Runs from any directory; exits 1 when anything fails, after running everything.

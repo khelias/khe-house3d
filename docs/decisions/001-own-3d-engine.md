@@ -55,8 +55,9 @@ JSON:
    work.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
-   and the made-up test houses; khe-home-assistant keeps the HA card and
-   carries a pinned, checked copy of the engine
+   and the made-up test houses. khe-home-assistant keeps the HA card, and it
+   and khe-makett each carry a pinned, checked copy of the engine, written
+   by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
 6. **A house's look is model data** (amended 2026-11-24). The real style's
    finishes are the model's `look` in its geometry layer: colours and
