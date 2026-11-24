@@ -13,8 +13,10 @@ const COLORS = {
 // The real style's default surfaces, which a model's look (geometry.look) overrides by name: a
 // light, matt architectural model. The walls are a plain light grey without trims, the roofs a
 // matt mid grey, and every frame, roof edge, the carport's panels and the pergola an off-white
-// (frame). Inside, the walls are light grey, the doors and their frames white, the living floors
-// light wood planks (planks()) and the wet rooms a grey tile (tiles()). The interior is drawn as an
+// (frame); the wall's base strip is in the frame's colour too unless the look names base, and a
+// chimney (geometry.chimneys) a plain mid grey. Inside, the walls are light grey, the doors and
+// their frames white, the living floors light wood planks (planks()) and the wet rooms a grey tile
+// (tiles()). The interior is drawn as an
 // architectural model: the walls' cut tops near black (cut), oak skirting, and the furniture in
 // white linen, a blue-grey fabric, light oak, a dark worktop and white-grey cabinets; an item of no
 // known kind is a warm grey block (furniture), apart from the walls. Fitted kitchens are light
@@ -31,7 +33,7 @@ const COLORS = {
 // The car and surroundings are plain stand-ins; outside the lot is a light base, like an
 // architectural model's. Snow (the winter layer) is a cool white.
 const REAL = {
-  cladding: '#e6e4df', roof: '#6e7377', frame: '#f0f0ed', unit: '#e4e4e0',
+  cladding: '#e6e4df', roof: '#6e7377', frame: '#f0f0ed', base: '#8e8c87', chimney: '#a9a7a1', unit: '#e4e4e0',
   glass: '#9fb8c4', interior: '#e4e3df', door: '#f2f1ed', floor: '#cdbfa8', tile: '#9a9690', deck: '#8a8178', paving: '#c4c0b8',
   lawn: '#64904a', outside: '#d8d6cc', hedge: '#355a32', crown: '#4f7a3a', trunk: '#5b4636',
   fence: '#5a5d60', car: '#2f3336', neighbour: '#b9b6ae', road: '#6b6b68',
@@ -52,6 +54,8 @@ const REAL = {
 const BOARD_TILE = 2, BOARDS = 12, BOARDS_SQUARE = 17, BOARD_PX = 512, GROOVE = 0.045;
 // what a look leaves out: plain cladding, no trims
 const LOOK = { cladding: { pattern: 'plain' }, trims: { openings: false, corners: false, base: false } };
+// the base strip's height when trims.base is true, and the range a look's {height} may take
+const BASE_H = 0.12, BASE_RANGE = [0.05, 1];
 const GLASS_OPACITY = 0.35, SHEER_OPACITY = 0.55;
 // the paving's stones: running-bond rows ROW deep of stones STONE long, the long joints waving
 // WAVE either way, on a PAVER_TILE m tile that holds whole rows and stones
@@ -70,7 +74,8 @@ const TILE_W = 0.2, TILE_L = 1.2, GROUT = 0.004, TILE_PX = 512;
 const SPLASH_TILE = 1.2, SPLASH_W = 0.6, SPLASH_H = 0.3, SPLASH_JOINT = 0.003, SPLASH_PX = 512;
 
 // a model's look (geometry.look) resolved over the defaults: the surfaces' colours and finishes by
-// name, the cladding's pattern (boards at 45 degrees unless the look gives an angle) and the trims;
+// name, the cladding's pattern (boards at 45 degrees unless the look gives an angle) and the trims,
+// each on or off, with the base strip's height and surface apart (trims.base {height} is on);
 // the card's model comes from HA's stored config, not only through the validator, so what is not a
 // known surface, finish or trim is left out rather than drawn
 function resolveLook(look) {
@@ -80,13 +85,17 @@ function resolveLook(look) {
   const finish = Object.fromEntries(given.map(([k, v]) => [k, Object.fromEntries(['roughness', 'metalness'].filter(f => f in v).map(f => [f, v[f]]))]));
   const c = (look && look.cladding) || LOOK.cladding;
   const cladding = c.pattern === 'boards' ? { pattern: 'boards', angle_deg: [0, 45, 90].includes(c.angle_deg) ? c.angle_deg : 45 } : LOOK.cladding;
-  const trims = { ...LOOK.trims, ...Object.fromEntries(Object.entries((look && look.trims) || {}).filter(([k]) => Object.hasOwn(LOOK.trims, k)).map(([k, v]) => [k, v === true])) };
-  return { colors, finish, look: { cladding, trims } };
+  const t = (look && look.trims) || {};
+  const h = t.base && typeof t.base === 'object' ? t.base.height : undefined;
+  const high = typeof h === 'number' && h >= BASE_RANGE[0] && h <= BASE_RANGE[1];
+  const trims = { ...LOOK.trims, ...Object.fromEntries(Object.entries(t).filter(([k]) => Object.hasOwn(LOOK.trims, k)).map(([k, v]) => [k, v === true || (k === 'base' && high)])) };
+  const base = { height: high ? h : BASE_H, surface: given.some(([k]) => k === 'base') ? 'base' : 'frame' };
+  return { colors, finish, look: { cladding, trims }, base };
 }
 
 export function createKit(THREE, style = 'simple', look) {
   const C = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, new THREE.Color(v)]));
-  const { colors, finish, look: resolved } = resolveLook(look);
+  const { colors, finish, look: resolved, base } = resolveLook(look);
   const disposables = [];
   const keep = x => (disposables.push(x), x);
   // real style only: a new lit material on every call, so a floor tints alone and a fade on
@@ -349,5 +358,5 @@ export function createKit(THREE, style = 'simple', look) {
     return out;
   }
 
-  return { C, style, REAL: colors, look: resolved, disposables, keep, basic, lineMat, mats, edges, box, prism, canvasTexture, applyFade, nightTint, near, spans, surface, solid, flatShape, boards, pavers, planks, tiles, splashTiles, wireMesh, bars };
+  return { C, style, REAL: colors, look: resolved, base, disposables, keep, basic, lineMat, mats, edges, box, prism, canvasTexture, applyFade, nightTint, near, spans, surface, solid, flatShape, boards, pavers, planks, tiles, splashTiles, wireMesh, bars };
 }

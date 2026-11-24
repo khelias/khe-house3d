@@ -5,7 +5,10 @@ describes a real place. An L of two storeys under a hip roof of two wings, the l
 the street (+x) and the short one running back from its west end; a one-storey porch on the long
 wing's east end under a flat roof, so the upper storey stands back from it; and a garage against
 the porch's east wall under a gable roof with its ridge running back from the street (z), its
-door in the street gable. The upper storey has two rooms with a wall between them.
+door in the street gable. The upper storey has two rooms with a wall between them. Its look has
+a plinth of its own colour, 0.4 high, and it has four chimneys: one from the living room through
+the ridge, one outside the west wall, a stove flue that stops under the ceiling, and one from the
+upper storey.
 
 ```json house3d:geometry
 {
@@ -13,6 +16,13 @@ door in the street gable. The upper storey has two rooms with a wall between the
  "axes": "x along the street, z away from the street, y up",
  "ceiling": 2.6,
  "levels": [0, 3],
+ "look": { "surfaces": { "base": "#4a4c4e" }, "trims": { "base": { "height": 0.4 } } },
+ "chimneys": [
+  { "id": "hearth", "rect": [3, 6, 3.6, 6.6], "top": 8 },
+  { "id": "outside", "rect": [-0.8, 3, -0.3, 3.5], "top": 6 },
+  { "id": "stove", "rect": [13, 6, 13.4, 6.4], "top": 2.2 },
+  { "id": "upper", "rect": [1, 12, 1.5, 12.5], "top": 7, "level": 1 }
+ ],
  "roofs": {
   "main": { "kind": "hip", "rects": [[-0.5, -0.5, 12.5, 8.5], [-0.5, -0.5, 6.5, 14.5]], "eave_y": 5.4, "pitch_deg": 22, "thick": 0.25 },
   "porch": { "kind": "flat", "rects": [[12, -0.4, 15.4, 8.4]], "y": 3.3, "thick": 0.25 },

@@ -60,6 +60,17 @@ test('look: the surface names are the validator\'s SURFACES', () => {
   assert.deepEqual(names, Object.keys(createKit(THREE, 'real').REAL));
 });
 
+test('look: the base strip\'s height range is the validator\'s BASE_HEIGHT', () => {
+  const py = fileURLToPath(new URL('../../scripts/house3d_model.py', import.meta.url));
+  const [lo, hi] = JSON.parse(execFileSync('python3', ['-I', '-c',
+    'import importlib.util, json, sys; s = importlib.util.spec_from_file_location("m", sys.argv[1]); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print(json.dumps(m.BASE_HEIGHT))', py], { encoding: 'utf-8' }));
+  const at = height => createKit(THREE, 'real', { trims: { base: { height } } });
+  for (const h of [lo, hi]) assert.deepEqual([at(h).look.trims.base, at(h).base.height], [true, h], `${h}`);
+  for (const h of [lo - 0.001, hi + 0.001]) assert.equal(at(h).look.trims.base, false, `${h}`);
+  assert.deepEqual(createKit(THREE, 'real', { trims: { base: true } }).base, { height: 0.12, surface: 'frame' });
+  assert.equal(createKit(THREE, 'real', { surfaces: { base: '#4a4c4e' }, trims: { base: true } }).base.surface, 'base');
+});
+
 test('look: without one, no trims, corner boards or base strip, and plain cladding', () => {
   const { byId } = real(bare);
   for (const part of ['trim', 'reveal', 'sill']) assert.equal(partsOf(byId.building, part).length, 0, part);

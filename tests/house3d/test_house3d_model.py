@@ -593,12 +593,27 @@ TWO_MUTATIONS = [
     ("a room on a level that does not exist", lambda L: L["rooms"]["rooms"][3].update(level=-1), "room bed: level -1 is not an index"),
     ("an upper wall's top under its floor", lambda L: _geo(L)["walls"][15].update(top=2.8), "walls[15]: top 2.8 is not above its level's floor 3"),
     ("an upper wall under a roof below its floor", lambda L: _geo(L)["walls"][9].update(top="garage"), "walls[9]: roof garage runs below its level's floor 3"),
+    ("chimneys not a list", lambda L: _geo(L).update(chimneys={}), "geometry: chimneys is not a list"),
+    ("a chimney not an object", lambda L: _geo(L)["chimneys"].append([1, 2]), "chimneys[4]: is not a JSON object"),
+    ("a chimney without an id", lambda L: _geo(L)["chimneys"][0].pop("id"), "chimneys[0]: id is not a name"),
+    ("two chimneys with one id", lambda L: _geo(L)["chimneys"][1].update(id="hearth"), "chimneys: id 'hearth' is not unique"),
+    ("a reversed chimney rect", lambda L: _geo(L)["chimneys"][0].update(rect=[3.6, 6, 3, 6.6]), "chimneys[0]: rect [3.6, 6, 3, 6.6] is not"),
+    ("a chimney on a level that does not exist", lambda L: _geo(L)["chimneys"][3].update(level=2), "chimneys[3]: level 2 is not an index into levels"),
+    ("a chimney top too near its floor", lambda L: _geo(L)["chimneys"][3].update(top=3.4), "chimneys[3]: top 3.4 is not 0.5 or more above its floor 3"),
+    ("a chimney without a top", lambda L: _geo(L)["chimneys"][0].pop("top"), "chimneys[0]: top None is not"),
+    ("an unknown chimney key", lambda L: _geo(L)["chimneys"][0].update(what="x"), "chimneys[0]: unknown key 'what'"),
 ]
 
 
 class RoofKinds(unittest.TestCase):
     def test_the_two_storey_fixture_validates(self):
         self.assertEqual(hm.validate(twostorey()), [])
+
+    def test_chimneys_are_optional_and_may_stand_outside_the_walls(self):
+        L = twostorey()
+        self.assertEqual(_geo(L)["chimneys"][1]["rect"][0], -0.8)
+        _geo(L).pop("chimneys")
+        self.assertEqual(hm.validate(L), [])
 
     def test_each_mutation_reports_its_problem(self):
         base = twostorey()
@@ -734,12 +749,21 @@ LOOK_MUTATIONS = [
     ("an angle on plain", _look(cladding={"pattern": "plain", "angle_deg": 45}), "look.cladding: unknown key 'angle_deg' for plain"),
     ("a trim as a string", _look(trims={"openings": "yes"}), "look.trims.openings: 'yes' is not true or false"),
     ("an unknown trim", _look(trims={"gutters": True}), "look.trims: unknown key 'gutters'"),
+    ("a base as a string", _look(trims={"base": "yes"}), "look.trims.base: 'yes' is not true, false or {\"height\": h}"),
+    ("a base too low", _look(trims={"base": {"height": 0.04}}), "look.trims.base: {'height': 0.04} is not"),
+    ("a base too high", _look(trims={"base": {"height": 1.2}}), "with 0.05 <= h <= 1.0"),
+    ("a base height as a string", _look(trims={"base": {"height": "0.4"}}), "look.trims.base: {'height': '0.4'} is not"),
+    ("a base with another key", _look(trims={"base": {"height": 0.4, "colour": "#000000"}}), "look.trims.base: {'height': 0.4, 'colour'"),
 ]
 
 
 class Look(unittest.TestCase):
     def test_every_key_is_optional(self):
-        for look in ({}, {"surfaces": {}}, {"cladding": {"pattern": "plain"}}, {"cladding": {"pattern": "boards"}}, {"trims": {"base": True}}):
+        for look in (
+            {}, {"surfaces": {}}, {"cladding": {"pattern": "plain"}}, {"cladding": {"pattern": "boards"}}, {"trims": {"base": True}},
+            {"trims": {"base": False}}, {"trims": {"base": {"height": 0.05}}}, {"trims": {"base": {"height": 1.0}}},
+            {"surfaces": {"base": "#4a4c4e", "chimney": {"color": "#8a8a86", "roughness": 0.9}}},
+        ):
             with self.subTest(look):
                 L = layers()
                 L["geometry"]["look"] = look

@@ -52,7 +52,10 @@ JSON:
    are refused, and a non-rectangular outline stays a shed roof. Storeys are
    walls and rooms on a `level` of a `levels` list of floor heights; an upper
    storey lifts away with the roof, and inside views per storey are later
-   work.
+   work. Chimneys are blocks of their own from a level's floor to their top:
+   a ground floor chimney above the ceiling is cut there like a wall up to a
+   roof and its upper part lifts with the roofs, an upper storey's lifts
+   whole, so a chimney is never furniture left standing in the air.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
    and the made-up test houses. khe-home-assistant keeps the HA card, and it
@@ -63,7 +66,10 @@ JSON:
    finishes are the model's `look` in its geometry layer: colours and
    finishes of the engine's named surfaces, the cladding's pattern (plain,
    or boards at 0, 45 or 90 degrees) and which trims are drawn (opening
-   trims, corner boards, the base strip). Without one the engine draws a
+   trims, corner boards, the base strip). The base strip is the plinth: it
+   may have a height of its own above floor 0, and is drawn in the frame's
+   surface unless the look names a base surface, so a look written before
+   the plinth had a surface draws as it did. Without one the engine draws a
    light, matt architectural model with plain walls and no trims, so a
    house never wears another house's look. The geometry layer, not a layer
    of its own: the look is as shareable as the geometry and both shells

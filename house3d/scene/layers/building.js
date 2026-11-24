@@ -12,13 +12,14 @@
 // tint from their own colour, a house room's floor reaching the faces of the walls it runs along,
 // and the lift on materials of its own, so its fade never reaches the lower walls. With the look's
 // trims (kit.look.trims), its exterior walls also carry opening trims with lined reveals and sill
-// flashings, corner boards on every outer and inner corner and a base strip, in the frame's
-// colour; the roofs have an edge, the carport roof a fascia and soffit, in the same colour. At night (ctx.state.night) a room with a light on, or with a marker
+// flashings, corner boards on every outer and inner corner and a base strip (the plinth, as high
+// as kit.base has it), in the frame's colour, the strip in the base surface when the look names
+// it; the roofs have an edge, the carport roof a fascia and soffit, in the same colour. At night (ctx.state.night) a room with a light on, or with a marker
 // carrying glow (recent motion), glows: its floor and its windows, each pane tagged with its room
 // at build, take a warm emissive scaled by the light's level or the glow; there are no real-time
-// lights.
+// lights. The chimneys (roof.chimneys) are upright blocks after the walls, cut at the ceiling like
+// a wall up to a roof, the part above in lift on a material of its own.
 const FRAME = 0.06, FRAME_D = 0.1; // real style: an opening's frame width and depth
-const BASE_H = 0.12; // real style: the strip along an exterior wall's foot
 // real style: an opening's trim and a corner board, both standing PROUD off the face, and a
 // sill's metal flashing; common cladding-trim sizes
 const TRIM = 0.1, CORNER = 0.12, PROUD = 0.025, REVEAL = 0.015;
@@ -125,6 +126,7 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
       return roomGlass.get(room);
     };
     const frame = kit.surface('frame'), panel = kit.surface('frame', two), door = kit.surface('door');
+    const plinth = kit.surface(kit.base.surface);
     cladLeaf = kit.surface('cladding');
     const boarded = { ...clad(two), inner };
     // the lift's inner faces are never seen, so they keep the cladding's colour without boards
@@ -133,10 +135,10 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
     // a panel (the carport's walls and posts) is in the frame's colour; else exterior is thick or
     // running up to a roof, and only it gets the cladding, the trims and the base strip
     wallMats = w => {
-      if (w.finish === 'panel') return { wall: panel, glass, frame, base: false };
+      if (w.finish === 'panel') return { wall: panel, glass, frame, base: null };
       const outside = w.t >= 0.3 || typeof w.top === 'string';
       // an interior wall's frames and door leaves are in the door's colour
-      return outside ? { boarded, glass, frame, base: true } : { wall: inner, glass, frame: door, base: false };
+      return outside ? { boarded, glass, frame, base: plinth } : { wall: inner, glass, frame: door, base: null };
     };
   } else {
     mH = mats();
@@ -235,9 +237,9 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
     const d = side ? 0.02 : w.t + 0.02, zc = side * (w.t / 2 + 0.01);
     // it runs the wall's length and over its corner fillers, broken by every opening that
     // reaches the ground, and meets the opening's trims
-    const pad = trims ? TRIM : 0, [lo, hi] = w.strip || [0, L];
-    const gaps = ops.filter(o => (o.sill || 0) < BASE_H).map(o => [o.c - o.w / 2 - pad, o.c + o.w / 2 + pad]).sort((p, q) => p[0] - q[0]);
-    kit.spans(lo, hi, gaps, 0.01).forEach(([a, b]) => { bar(a, b, 0, BASE_H, d).position.z = zc; });
+    const pad = trims ? TRIM : 0, [lo, hi] = w.strip || [0, L], h = kit.base.height;
+    const gaps = ops.filter(o => (o.sill || 0) < h).map(o => [o.c - o.w / 2 - pad, o.c + o.w / 2 + pad]).sort((p, q) => p[0] - q[0]);
+    kit.spans(lo, hi, gaps, 0.01).forEach(([a, b]) => { bar(a, b, 0, h, d, m.base).position.z = zc; });
   }
 
   // the room a pane at c along wall w looks into: a point just inside the wall from the pane's
@@ -402,6 +404,24 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
     if (!cut) return buildWall(group, base, mW);
     buildWall(group, { ...base, top: roof.flat(cut) }, mW);
     buildWall(lift, { ...base, openings: [], bot: roof.flat(cut) }, lifted(w));
+  });
+
+  // a chimney from its level's floor to its top: on the ground floor in group up to the ceiling and
+  // the rest in lift, an upper storey's in lift whole; the real style's lift part on a material of
+  // its own, so its fade stays off the lower part
+  const chimneys = roof.chimneys || [], chimneyMeshes = [];
+  const mC = !chimneys.length ? null : real ? { group: kit.surface('chimney'), lift: kit.surface('chimney', { transparent: true }) } : { group: mH, lift: mR };
+  chimneys.forEach(c => {
+    const parts = c.cut ? [[group, 0, c.cut], [lift, c.cut, c.top]] : [[c.level > 0 ? lift : group, levels[c.level], c.top]];
+    parts.forEach(([parent, a, b]) => {
+      const m = parent === lift ? mC.lift : mC.group;
+      const mesh = real ? kit.solid(parent, m, c.rect, [a, b]) : box(parent, m.wall, m.edge, c.rect, [a, b]);
+      if (real) mesh.castShadow = mesh.receiveShadow = true;
+      else mesh.renderOrder = 2;
+      mesh.userData.part = 'chimney';
+      mesh.userData.chimney = c.id;
+      chimneyMeshes.push(mesh);
+    });
   });
 
   // a board or filler is split at the wall's cut like the wall, the upper part in lift; a filler
@@ -588,13 +608,14 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
   }
   // the nearest wall face from (x, y, z) within reach along the horizontal normal (nx, nz), looked
   // for both ways: { d, s }, its distance and side (1 along the normal, -1 against), or null. A
-  // wall is any of this layer's meshes but the floors and the roofs, the list made on first use.
+  // wall is any of this layer's meshes but the floors, the roofs and the chimneys, the list made on
+  // first use.
   // It reads the walls where they stand, so it answers for the rest pose only: call it at build
   let walls = null;
   const probe = new THREE.Raycaster(), from = new THREE.Vector3(), dir = new THREE.Vector3();
   function wallBehind(x, y, z, nx, nz, reach) {
     if (!walls) {
-      const skip = new Set([...floorMeshes, ...roofMeshes]);
+      const skip = new Set([...floorMeshes, ...roofMeshes, ...chimneyMeshes]);
       walls = [];
       [group, lift].forEach(g => { g.updateMatrixWorld(true); g.traverse(o => { if (o.isMesh && !skip.has(o)) walls.push(o); }); });
     }

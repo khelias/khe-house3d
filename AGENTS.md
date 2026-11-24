@@ -49,7 +49,7 @@ scripts/           house3d_model.py (the model format: its docstring is the
                    check.sh
 tests/house3d/     made-up test houses (fixture-model.md, the one-storey house
                    the HA demo shows; fixture-twostorey.md, hip, gable and flat
-                   roofs and an upper storey), the engine tests
+                   roofs, an upper storey, a plinth and chimneys), the engine tests
                    (engine-*.test.mjs by area over engine-harness.mjs), the
                    simple-style snapshot, the geometry and look baselines,
                    model, build, placement and copy tests (Python unittest)
