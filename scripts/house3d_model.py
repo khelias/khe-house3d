@@ -39,6 +39,7 @@ Look: geometry.look (optional) is the house's finishes in the real style; withou
 draws a light, matt architectural model. surfaces maps an engine surface name (SURFACES) to
 "#rrggbb" or {"color": "#rrggbb", "roughness": 0..1, "metalness": 0..1}; cladding is
 {"pattern": "plain"} or {"pattern": "boards", "angle_deg": 0, 45 or 90} (0 horizontal);
+roof is {"pattern": "plain" | "seam" | "tile"} (plain by default, on pitched roofs only);
 trims {"openings", "corners", "base"} are booleans for the opening trims with their reveals and
 sill flashings, the corner boards and the base strip (the plinth), each off by default; base may
 instead be {"height": h}, 0.05 <= h <= 1.0 above floor 0 (true is 0.12). The base strip is in the
@@ -151,6 +152,7 @@ SURFACES = (
 )  # fmt: skip
 CLADDING_PATTERNS = ("plain", "boards")
 BOARD_ANGLES = (0, 45, 90)
+ROOF_PATTERNS = ("plain", "seam", "tile")
 TRIMS = ("openings", "corners", "base")
 BASE_HEIGHT = (0.05, 1.0)  # a look's trims.base {"height": h}: the plinth's range above floor 0
 CHIMNEY_KEYS = ("id", "rect", "top", "level")
@@ -910,11 +912,11 @@ def _validate_edges(where, f, bad):
 
 
 def _validate_look(look, bad):
-    """geometry.look: the surfaces' finishes, the cladding's pattern and which trims are drawn."""
+    """geometry.look: the surfaces' finishes, the cladding and roof patterns, and which trims are drawn."""
     if not isinstance(look, dict):
         bad("look: is not a JSON object")
         return
-    for k in sorted(set(look) - {"surfaces", "cladding", "trims"}):
+    for k in sorted(set(look) - {"surfaces", "cladding", "roof", "trims"}):
         bad(f"look: unknown key {k!r}")
     surfaces = look.get("surfaces", {})
     if not isinstance(surfaces, dict):
@@ -952,6 +954,15 @@ def _validate_look(look, bad):
             a = c.get("angle_deg", 45)
             if c["pattern"] == "boards" and not (_num(a) and a in BOARD_ANGLES):
                 bad(f"look.cladding: angle_deg {a!r} is not one of 0, 45, 90")
+    if "roof" in look:
+        r = look["roof"]
+        if not isinstance(r, dict):
+            bad("look.roof: is not a JSON object")
+        elif r.get("pattern") not in ROOF_PATTERNS:
+            bad(f"look.roof: pattern {r.get('pattern')!r} is not one of {', '.join(ROOF_PATTERNS)}")
+        else:
+            for k in sorted(set(r) - {"pattern"}):
+                bad(f"look.roof: unknown key {k!r}")
     if "trims" in look:
         t = look["trims"]
         if not isinstance(t, dict):

@@ -131,7 +131,9 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
     const boarded = { ...clad(two), inner };
     // the lift's inner faces are never seen, so they keep the cladding's colour without boards
     const lifted = clad(fades);
-    mR = { boarded: { ...lifted, inner: lifted.edge }, roof: kit.surface('roof', fades), panel: kit.surface('frame', fades), frame: kit.surface('frame', fades), inner: kit.surface('interior', fades), door: kit.surface('door', fades) };
+    const rMap = kit.roofMap(), roofMat = kit.surface('roof', fades);
+    const roofPitched = rMap ? kit.surface('roof', { ...fades, map: rMap }) : roofMat;
+    mR = { boarded: { ...lifted, inner: lifted.edge }, roof: roofMat, roofPitched, panel: kit.surface('frame', fades), frame: kit.surface('frame', fades), inner: kit.surface('interior', fades), door: kit.surface('door', fades) };
     // a panel (the carport's walls and posts) is in the frame's colour; else exterior is thick or
     // running up to a roof, and only it gets the cladding, the trims and the base strip
     wallMats = w => {
@@ -537,61 +539,82 @@ export default function build({ THREE, kit, C, model, roof, ceiling, state, styl
   }
 
   const roofMeshes = [];
-  function shedRoof(points, h, thick) {
+  function shedRoof(id, points, h, thick) {
     const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
     const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
-    const p = geo.attributes.position;
+    const p = geo.attributes.position, uv = geo.attributes.uv;
+    const a = h(1, 0) - h(0, 0), s = a >= 0 ? 1 : -1, scale = Math.hypot(1, Math.abs(a));
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getY(i), d = p.getZ(i);
       p.setXYZ(i, x, h(x, z) - roof.gap + d, z);
+      uv.setXY(i, s * z, s * x * scale);
     }
+    uv.needsUpdate = true;
     geo.computeVertexNormals();
-    addRoof(geo);
+    addRoof(geo, id, true);
   }
-  function addRoof(geo) {
+  function addRoof(geo, id, pitched) {
     if (real) {
       // the extrusion's first group is the top and underside, the second the edge band
-      const mesh = new THREE.Mesh(geo, [mR.roof, mR.frame]);
+      const mesh = new THREE.Mesh(geo, [pitched ? mR.roofPitched : mR.roof, mR.frame]);
       mesh.castShadow = mesh.receiveShadow = true;
+      mesh.userData.roof = id;
       roofMeshes.push(mesh);
       return lift.add(mesh);
     }
     const mesh = new THREE.Mesh(geo, mR.wall);
+    mesh.userData.roof = id;
     roofMeshes.push(mesh);
     mesh.renderOrder = 4;
     lift.add(mesh, edges(geo, mR.edge, 20));
   }
   // a wing roof (hip, gable, flat): its faces as a slab, the top and underside in the first group
   // and the band along the outer outline in the second, as a shed roof's extrusion has them
-  function wingRoof({ faces, edges: outer }, thick) {
-    const caps = [], band = [];
+  function wingRoof(id, { faces, edges: outer }, thick, pitched) {
+    const caps = [], capUv = [], band = [], bandUv = [];
     const at = ([a, b, c], [x, z], d) => [x, a * x + b * z + c - roof.gap + d, z];
+    const uvAt = ([a, b], [x, z]) => {
+      const g = Math.hypot(a, b);
+      if (g <= 1e-6) return [x, z];
+      const gx = a / g, gz = b / g;
+      return [x * -gz + z * gx, (x * gx + z * gz) * Math.hypot(1, g)];
+    };
     // a triangle wound so its normal points up (up true) or down
-    const tri = (out, p, q, r, up) => {
+    const tri = (p, q, r, upP, upQ, upR, up) => {
       const ny = (q[2] - p[2]) * (r[0] - p[0]) - (q[0] - p[0]) * (r[2] - p[2]);
-      out.push(...(ny > 0 === up ? [...p, ...q, ...r] : [...p, ...r, ...q]));
+      if (ny > 0 === up) {
+        caps.push(...p, ...q, ...r);
+        capUv.push(...upP, ...upQ, ...upR);
+      } else {
+        caps.push(...p, ...r, ...q);
+        capUv.push(...upP, ...upR, ...upQ);
+      }
     };
     faces.forEach(({ poly, plane }) => {
+      const uv0 = uvAt(plane, poly[0]);
       for (let i = 1; i + 1 < poly.length; i++) {
-        tri(caps, at(plane, poly[0], thick), at(plane, poly[i], thick), at(plane, poly[i + 1], thick), true);
-        tri(caps, at(plane, poly[0], 0), at(plane, poly[i], 0), at(plane, poly[i + 1], 0), false);
+        const uvi = uvAt(plane, poly[i]), uvj = uvAt(plane, poly[i + 1]);
+        tri(at(plane, poly[0], thick), at(plane, poly[i], thick), at(plane, poly[i + 1], thick), uv0, uvi, uvj, true);
+        tri(at(plane, poly[0], 0), at(plane, poly[i], 0), at(plane, poly[i + 1], 0), uv0, uvi, uvj, false);
       }
     });
     outer.forEach(([p, q, plane]) => {
       const a = at(plane, p, 0), b = at(plane, q, 0), c = at(plane, q, thick), d = at(plane, p, thick);
       band.push(...a, ...b, ...c, ...a, ...c, ...d);
+      bandUv.push(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     });
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([...caps, ...band], 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([...capUv, ...bandUv], 2));
     geo.addGroup(0, caps.length / 3, 0);
     geo.addGroup(caps.length / 3, band.length / 3, 1);
     geo.computeVertexNormals();
-    addRoof(geo);
+    addRoof(geo, id, pitched);
   }
   for (const [id, r] of Object.entries(model.roofs || {})) {
     const faces = roof.faces(id);
-    if (faces) wingRoof(faces, r.thick);
-    else shedRoof(r.outline, roof.fns[id], r.thick);
+    if (faces) wingRoof(id, faces, r.thick, r.kind !== 'flat');
+    else shedRoof(id, r.outline, roof.fns[id], r.thick);
   }
   (model.roof_steps || []).forEach(s => {
     const low = model.roofs[s.bot];

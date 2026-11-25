@@ -100,7 +100,7 @@ test('look: without one, no building material in the fixture\'s cladding, frame 
 test('look: the fixture\'s look draws its own colours, trims and boards', () => {
   const { ctx, byId } = real(model);
   assert.equal(hexOf(ctx.kit, 'cladding'), 'bebeb8');
-  assert.deepEqual(ctx.kit.look, { cladding: { pattern: 'boards', angle_deg: 45 }, trims: { openings: true, corners: true, base: true } });
+  assert.deepEqual(ctx.kit.look, { cladding: { pattern: 'boards', angle_deg: 45 }, roof: { pattern: 'plain' }, trims: { openings: true, corners: true, base: true } });
   assert.ok(partsOf(byId.building, 'trim').length > 0);
 });
 
@@ -114,11 +114,14 @@ test('look: a surface takes its own roughness and metalness, the rest keep their
   assert.equal(kit.surface('deck', { roughness: 0.5 }).roughness, 0.5);
 });
 
-test('look: an unknown or malformed surface, angle or trim in the look is ignored, not drawn', () => {
-  const kit = createKit(THREE, 'real', { surfaces: { brick: '#aa0000', constructor: '#aa0000', roof: null, deck: { roughness: 0.3 } }, cladding: { pattern: 'boards', angle_deg: 30 }, trims: { gutters: true, base: 'yes' } });
+test('look: an unknown or malformed surface, angle, roof or trim in the look is ignored, not drawn', () => {
+  const kit = createKit(THREE, 'real', { surfaces: { brick: '#aa0000', constructor: '#aa0000', roof: null, deck: { roughness: 0.3 } }, cladding: { pattern: 'boards', angle_deg: 30 }, roof: { pattern: 'shingle' }, trims: { gutters: true, base: 'yes' } });
   assert.ok(!Object.hasOwn(kit.REAL, 'brick') && !Object.hasOwn(kit.REAL, 'constructor'));
   assert.deepEqual([kit.REAL.roof, kit.REAL.deck], [createKit(THREE, 'real').REAL.roof, createKit(THREE, 'real').REAL.deck]);
   assert.equal(kit.look.cladding.angle_deg, 45);
+  assert.deepEqual(kit.look.roof, { pattern: 'plain' });
+  assert.equal(kit.roofMap(), null);
+  assert.deepEqual(createKit(THREE, 'real', { roof: 'seam' }).look.roof, { pattern: 'plain' });
   assert.deepEqual(kit.look.trims, { openings: false, corners: false, base: false });
 });
 
@@ -137,4 +140,47 @@ test('look: boards at 45 are the default angle, at 0 and 90 grooves along rows o
     assert.ok(across[0] < 255, `${angle}: a groove at the edge`);
     assert.equal(across[S - 1], 255, `${angle}: a board up to the other edge`);
   }
+});
+
+test('look: roofMap() is null for plain, periodic seams along u for seam, and staggered courses for tile', () => {
+  assert.equal(createKit(THREE, 'real').roofMap(), null);
+  assert.equal(createKit(THREE, 'real', { roof: { pattern: 'plain' } }).roofMap(), null);
+
+  const seamKit = createKit(THREE, 'real', { roof: { pattern: 'seam' } });
+  const seam = seamKit.roofMap();
+  assert.equal(seam, seamKit.roofMap(), 'cached per mount');
+  assert.equal(seam.wrapS, THREE.RepeatWrapping);
+  assert.equal(seam.wrapT, THREE.RepeatWrapping);
+  assert.deepEqual([seam.repeat.x, seam.repeat.y], [0.5, 0.5]);
+  const S = seam.image.width, sd = seam.image.data, spx = (i, j) => sd[(j * S + i) * 4];
+  // constant along v (every row matches row 0) and 4 standing seams along u (dark shadow + bright highlight)
+  for (let i = 0; i < S; i++) assert.equal(spx(i, S - 1), spx(i, 0), `seam constant along v at i=${i}`);
+  const row0 = Array.from({ length: S }, (_, i) => spx(i, 0));
+  const shadows = row0.filter((v, i) => v < 150 && row0[(i + S - 1) % S] >= 150).length;
+  const highlights = row0.filter((v, i) => v === 255 && row0[(i + S - 1) % S] < 255).length;
+  assert.equal(shadows, 4, '4 standing seam shadows per 2 m tile');
+  assert.equal(highlights, 4, '4 standing seam highlights per 2 m tile');
+
+  const tileKit = createKit(THREE, 'real', { roof: { pattern: 'tile' } });
+  const tile = tileKit.roofMap();
+  assert.equal(tile, tileKit.roofMap(), 'cached per mount');
+  assert.equal(tile.wrapS, THREE.RepeatWrapping);
+  assert.equal(tile.wrapT, THREE.RepeatWrapping);
+  assert.ok(Math.abs(tile.repeat.x - 1 / 1.8) < 1e-9 && Math.abs(tile.repeat.y - 1 / 1.8) < 1e-9);
+  assert.notDeepEqual(tile.image.data, seam.image.data);
+  const td = tile.image.data, tpx = (i, j) => td[(j * S + i) * 4];
+  // 6 horizontal course lip shadows along v (dark at low v of each course, brighter near top of each course)
+  const colAvg = j => { let sum = 0; for (let i = 0; i < S; i++) sum += tpx(i, j); return sum / S; };
+  const avgs = Array.from({ length: S }, (_, j) => colAvg(j));
+  assert.ok(avgs[0] < avgs[S - 1] - 40, 'course lip shadow sits at low v (down-slope) and wraps to high v');
+  const courses = avgs.filter((v, j) => v < 170 && avgs[(j + S - 1) % S] >= 170).length;
+  assert.equal(courses, 6, '6 staggered courses per 1.8 m tile (even count for clean wrapping)');
+  // odd vs even course stagger: row 0 (j=40) and row 1 (j=125) are shifted horizontally, row 0 and row 2 (j=210) align
+  const r0 = Array.from({ length: S }, (_, i) => tpx(i, 40));
+  const r1 = Array.from({ length: S }, (_, i) => tpx(i, 125));
+  const sideSeams = arr => arr.filter((v, i) => v < 175 && arr[(i + S - 1) % S] >= 175).length;
+  assert.equal(sideSeams(r0), 6, '6 vertical tile ribs along u');
+  assert.equal(sideSeams(r1), 6, '6 vertical tile ribs on staggered row');
+  // the first side seam of row 0 is at i=0, whereas row 1 is shifted by half a tile (~43 px)
+  assert.ok(r0[0] < 175 && r1[0] > 180, 'adjacent courses stagger by half a tile');
 });

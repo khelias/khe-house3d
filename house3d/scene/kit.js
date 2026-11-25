@@ -52,8 +52,14 @@ const REAL = {
 // rising to the right, 0 horizontal or 90 upright, only their grooves drawn, on a 2 m tile of the
 // walls' metre UVs; BOARDS is the boards across the tile at 45, BOARDS_SQUARE at 0 and 90
 const BOARD_TILE = 2, BOARDS = 12, BOARDS_SQUARE = 17, BOARD_PX = 512, GROOVE = 0.045;
-// what a look leaves out: plain cladding, no trims
-const LOOK = { cladding: { pattern: 'plain' }, trims: { openings: false, corners: false, base: false } };
+// pitched roof profiles (a look's roof pattern 'seam' or 'tile') on slope-aligned metre UVs:
+// u runs along the eave, v runs uphill along the slope surface. 'seam' draws 4 standing-seam
+// sheets per 2 m tile (0.5 m pitch); 'tile' draws 6 staggered courses of 6 fluted tiles (0.30 m
+// each on a 1.8 m tile, even course count so half-pitch stagger wraps cleanly)
+const ROOF_PX = 512, ROOF_SEAM_TILE = 2, ROOF_SEAM_PITCH = 0.5, ROOF_SEAM_SHADOW = 0.015, ROOF_SEAM_HI = 0.03;
+const ROOF_TILE_SIZE = 1.8, ROOF_TILE_W = 0.3, ROOF_TILE_H = 0.3, ROOF_TILE_LIP = 0.1, ROOF_TILE_SIDE = 0.06;
+// what a look leaves out: plain cladding and roof, no trims
+const LOOK = { cladding: { pattern: 'plain' }, roof: { pattern: 'plain' }, trims: { openings: false, corners: false, base: false } };
 // the base strip's height when trims.base is true, and the range a look's {height} may take
 const BASE_H = 0.12, BASE_RANGE = [0.05, 1];
 const GLASS_OPACITY = 0.35, SHEER_OPACITY = 0.55;
@@ -83,14 +89,16 @@ function resolveLook(look) {
     .map(([k, v]) => [k, typeof v === 'string' ? { color: v } : v]).filter(([, v]) => v && typeof v.color === 'string');
   const colors = { ...REAL, ...Object.fromEntries(given.map(([k, v]) => [k, v.color])) };
   const finish = Object.fromEntries(given.map(([k, v]) => [k, Object.fromEntries(['roughness', 'metalness'].filter(f => f in v).map(f => [f, v[f]]))]));
-  const c = (look && look.cladding) || LOOK.cladding;
+  const c = (look && look.cladding && typeof look.cladding === 'object') ? look.cladding : LOOK.cladding;
   const cladding = c.pattern === 'boards' ? { pattern: 'boards', angle_deg: [0, 45, 90].includes(c.angle_deg) ? c.angle_deg : 45 } : LOOK.cladding;
+  const r = (look && look.roof && typeof look.roof === 'object') ? look.roof : LOOK.roof;
+  const roof = r.pattern === 'seam' || r.pattern === 'tile' ? { pattern: r.pattern } : LOOK.roof;
   const t = (look && look.trims) || {};
   const h = t.base && typeof t.base === 'object' ? t.base.height : undefined;
   const high = typeof h === 'number' && h >= BASE_RANGE[0] && h <= BASE_RANGE[1];
   const trims = { ...LOOK.trims, ...Object.fromEntries(Object.entries(t).filter(([k]) => Object.hasOwn(LOOK.trims, k)).map(([k, v]) => [k, v === true || (k === 'base' && high)])) };
   const base = { height: high ? h : BASE_H, surface: given.some(([k]) => k === 'base') ? 'base' : 'frame' };
-  return { colors, finish, look: { cladding, trims }, base };
+  return { colors, finish, look: { cladding, roof, trims }, base };
 }
 
 export function createKit(THREE, style = 'simple', look) {
@@ -183,6 +191,42 @@ export function createKit(THREE, style = 'simple', look) {
     back.repeat.x = -1 / BOARD_TILE;
     back.needsUpdate = true;
     return (boardPair = [front, back]);
+  }
+
+  // real style: the pitched roof's profile texture ('seam' or 'tile'), or null for 'plain'; one
+  // per mount, on slope-aligned metre UVs (u along eave, v uphill)
+  let roofTex;
+  function roofMap() {
+    const pat = resolved.roof.pattern;
+    if (pat === 'plain') return null;
+    if (roofTex) return roofTex;
+    const S = ROOF_PX;
+    if (pat === 'seam') {
+      const m = ROOF_SEAM_TILE / S;
+      roofTex = tileTexture(S, ROOF_SEAM_TILE, i => {
+        const u = (i + 0.5) * m, sheet = Math.floor(u / ROOF_SEAM_PITCH);
+        const lu = u - sheet * ROOF_SEAM_PITCH;
+        let shade = 0.9 * (1 + 0.05 * (hash(sheet, 19) - 0.5));
+        if (lu < ROOF_SEAM_SHADOW) shade = 0.48;
+        else if (lu < ROOF_SEAM_HI) shade = 1;
+        const g = Math.round(Math.min(1, Math.max(0, shade)) * 255);
+        return [g, g, g, 255];
+      });
+      return roofTex;
+    }
+    const m = ROOF_TILE_SIZE / S, cols = Math.round(ROOF_TILE_SIZE / ROOF_TILE_W);
+    roofTex = tileTexture(S, ROOF_TILE_SIZE, (i, j) => {
+      const u = (i + 0.5) * m, v = (j + 0.5) * m;
+      const row = Math.floor(v / ROOF_TILE_H), lv = (v - row * ROOF_TILE_H) / ROOF_TILE_H;
+      const ou = (u + (row % 2) * (ROOF_TILE_W / 2)) % ROOF_TILE_SIZE;
+      const col = Math.floor(ou / ROOF_TILE_W) % cols, lu = (ou - col * ROOF_TILE_W) / ROOF_TILE_W;
+      let shade = 0.88 * (1 + 0.08 * (hash(row, col + 23) - 0.5)) * (1 + 0.08 * Math.sin(2 * Math.PI * lu));
+      if (lu < ROOF_TILE_SIDE) shade *= 0.72;
+      if (lv < ROOF_TILE_LIP) shade *= 0.5 + 0.5 * (lv / ROOF_TILE_LIP);
+      const g = Math.round(Math.min(1, Math.max(0, shade)) * 255);
+      return [g, g, g, 255];
+    });
+    return roofTex;
   }
 
   // a repeating DataTexture of S x S pixels filled by px(i, j) -> [r, g, b, a], on a tile metres
@@ -358,5 +402,5 @@ export function createKit(THREE, style = 'simple', look) {
     return out;
   }
 
-  return { C, style, REAL: colors, look: resolved, base, disposables, keep, basic, lineMat, mats, edges, box, prism, canvasTexture, applyFade, nightTint, near, spans, surface, solid, flatShape, boards, pavers, planks, tiles, splashTiles, wireMesh, bars };
+  return { C, style, REAL: colors, look: resolved, base, disposables, keep, basic, lineMat, mats, edges, box, prism, canvasTexture, applyFade, nightTint, near, spans, surface, solid, flatShape, boards, roofMap, pavers, planks, tiles, splashTiles, wireMesh, bars };
 }

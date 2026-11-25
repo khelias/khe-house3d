@@ -4,7 +4,7 @@
 // engine-harness.mjs; scripts/house3d-test.sh runs every engine-*.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { THREE, E, buildAll, loadModel, modelFrame, homeBox, createKit, hexOf } from './engine-harness.mjs';
+import { THREE, E, buildAll, loadModel, modelFrame, homeBox, createKit, hexOf, model } from './engine-harness.mjs';
 
 const { roofFaces, roofPeak, chimneysOf, houseTop } = await import(new URL('house3d.js', E));
 const { crossings } = await import(new URL('scene/layers/building.js', E));
@@ -273,4 +273,58 @@ test('the plinth breaks under a sill lower than its height', () => {
   const under = strips => strips.filter(s => s.x0 < 3.3 && s.x1 > 1.7).length;
   assert.equal(under(streetStrips({ trims: { base: { height: 0.4 } } })), 1, 'under the sill: one strip on');
   assert.equal(under(streetStrips({ trims: { base: { height: 1 } } })), 0, 'over the sill: broken');
+});
+
+function roofMeshesOf(L) {
+  const out = {};
+  L.lift.traverse(o => { if (o.isMesh && o.userData.roof) out[o.userData.roof] = o; });
+  return out;
+}
+
+test('pitched wing roofs carry slope-aligned UVs and roof texture while flat roofs stay plain', () => {
+  const { layers } = buildTwo('real');
+  const roofs = roofMeshesOf(layers.building);
+  assert.deepEqual(Object.keys(roofs).sort(), ['garage', 'main', 'porch']);
+  for (const id of ['main', 'garage']) {
+    const m = roofs[id], pos = m.geometry.attributes.position, uv = m.geometry.attributes.uv;
+    assert.ok(uv, `${id}: carries uv attribute`);
+    assert.equal(uv.count, pos.count, `${id}: uv count matches position count`);
+    assert.ok(m.material[0].map !== null, `${id}: pitched roof has roofMap`);
+    // on every pitched top-cap triangle, higher y has higher v (uphill)
+    const capVerts = m.geometry.groups[0].count;
+    for (let i = 0; i < capVerts; i += 3) {
+      const ys = [pos.getY(i), pos.getY(i + 1), pos.getY(i + 2)];
+      const vs = [uv.getY(i), uv.getY(i + 1), uv.getY(i + 2)];
+      const hi = ys.indexOf(Math.max(...ys)), lo = ys.indexOf(Math.min(...ys));
+      if (ys[hi] - ys[lo] > 1e-4) assert.ok(vs[hi] > vs[lo], `${id}: v increases uphill on face`);
+    }
+  }
+  assert.equal(roofs.porch.material[0].map, null, 'flat roof stays plain even with look.roof seam');
+  assert.equal(roofs.porch.geometry.attributes.uv.count, roofs.porch.geometry.attributes.position.count);
+});
+
+test('shed roofs carry roof texture and uphill v for both falls east and falls west', () => {
+  for (const falls of ['east', 'west']) {
+    const m = structuredClone(model);
+    m.look = { ...(m.look || {}), roof: { pattern: 'seam' } };
+    for (const r of Object.values(m.roofs)) r.falls = falls;
+    const { built } = buildAll({ style: 'real' }, m);
+    const roofs = roofMeshesOf(built.find(b => b.want === 'building').L);
+    const ids = Object.keys(m.roofs);
+    assert.deepEqual(Object.keys(roofs).sort(), ids.sort(), falls);
+    for (const id of ids) {
+      const mesh = roofs[id], pos = mesh.geometry.attributes.position, uv = mesh.geometry.attributes.uv;
+      assert.ok(mesh.material[0].map !== null, `${falls} ${id}: has roofMap`);
+      assert.equal(uv.count, pos.count);
+      // compare the highest-x and lowest-x vertices: v must be higher at the uphill end
+      let loX = Infinity, hiX = -Infinity, vAtLo = 0, vAtHi = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), v = uv.getY(i);
+        if (x < loX) { loX = x; vAtLo = v; }
+        if (x > hiX) { hiX = x; vAtHi = v; }
+      }
+      if (falls === 'east') assert.ok(vAtLo > vAtHi, `falls east ${id}: v increases uphill (towards low x)`);
+      else assert.ok(vAtHi > vAtLo, `falls west ${id}: v increases uphill (towards high x)`);
+    }
+  }
 });

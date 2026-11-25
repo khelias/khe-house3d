@@ -16,7 +16,7 @@ upper storey.
  "axes": "x along the street, z away from the street, y up",
  "ceiling": 2.6,
  "levels": [0, 3],
- "look": { "surfaces": { "base": "#4a4c4e" }, "trims": { "base": { "height": 0.4 } } },
+ "look": { "surfaces": { "base": "#4a4c4e" }, "roof": { "pattern": "seam" }, "trims": { "base": { "height": 0.4 } } },
  "chimneys": [
   { "id": "hearth", "rect": [3, 6, 3.6, 6.6], "top": 8 },
   { "id": "outside", "rect": [-0.8, 3, -0.3, 3.5], "top": 6 },

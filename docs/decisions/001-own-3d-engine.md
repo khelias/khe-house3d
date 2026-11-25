@@ -1,6 +1,6 @@
 # ADR-001: The 3D view is our own three.js engine over the measured house model
 
-- **Status:** Accepted (2026-11-24)
+- **Status:** Accepted (2026-11-25)
 - **Related:** [estate ADR-001](https://github.com/khelias/khe-architecture/blob/main/decisions/001-repo-per-product.md), [estate ADR-012](https://github.com/khelias/khe-architecture/blob/main/decisions/012-estate-architecture-is-public.md), [estate ADR-043](https://github.com/khelias/khe-architecture/blob/main/decisions/043-household-parts-are-public-source-built-into-khe-sites.md), [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)
 
 ## Context
@@ -62,11 +62,13 @@ JSON:
    and khe-makett each carry a pinned, checked copy of the engine, written
    by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
-6. **A house's look is model data** (amended 2026-11-24). The real style's
+6. **A house's look is model data** (amended 2026-11-25). The real style's
    finishes are the model's `look` in its geometry layer: colours and
    finishes of the engine's named surfaces, the cladding's pattern (plain,
-   or boards at 0, 45 or 90 degrees) and which trims are drawn (opening
-   trims, corner boards, the base strip). The base strip is the plinth: it
+   or boards at 0, 45 or 90 degrees), the pitched roofs' profile (`roof.pattern`:
+   `plain`, `seam` standing-seam metal, or `tile` roof tiles; flat roofs stay
+   plain) and which trims are drawn (opening trims, corner boards, the base
+   strip). The base strip is the plinth: it
    may have a height of its own above floor 0, and is drawn in the frame's
    surface unless the look names a base surface, so a look written before
    the plinth had a surface draws as it did. Without one the engine draws a

@@ -747,6 +747,9 @@ LOOK_MUTATIONS = [
     ("an unknown pattern", _look(cladding={"pattern": "brick"}), "look.cladding: pattern 'brick' is not one of plain, boards"),
     ("boards at 30", _look(cladding={"pattern": "boards", "angle_deg": 30}), "look.cladding: angle_deg 30 is not one of 0, 45, 90"),
     ("an angle on plain", _look(cladding={"pattern": "plain", "angle_deg": 45}), "look.cladding: unknown key 'angle_deg' for plain"),
+    ("roof look not an object", _look(roof="seam"), "look.roof: is not a JSON object"),
+    ("an unknown roof pattern", _look(roof={"pattern": "shingle"}), "look.roof: pattern 'shingle' is not one of plain, seam, tile"),
+    ("an unknown roof key", _look(roof={"pattern": "seam", "pitch": 0.5}), "look.roof: unknown key 'pitch'"),
     ("a trim as a string", _look(trims={"openings": "yes"}), "look.trims.openings: 'yes' is not true or false"),
     ("an unknown trim", _look(trims={"gutters": True}), "look.trims: unknown key 'gutters'"),
     ("a base as a string", _look(trims={"base": "yes"}), "look.trims.base: 'yes' is not true, false or {\"height\": h}"),
@@ -760,7 +763,9 @@ LOOK_MUTATIONS = [
 class Look(unittest.TestCase):
     def test_every_key_is_optional(self):
         for look in (
-            {}, {"surfaces": {}}, {"cladding": {"pattern": "plain"}}, {"cladding": {"pattern": "boards"}}, {"trims": {"base": True}},
+            {}, {"surfaces": {}}, {"cladding": {"pattern": "plain"}}, {"cladding": {"pattern": "boards"}},
+            {"roof": {"pattern": "plain"}}, {"roof": {"pattern": "seam"}}, {"roof": {"pattern": "tile"}},
+            {"trims": {"base": True}},
             {"trims": {"base": False}}, {"trims": {"base": {"height": 0.05}}}, {"trims": {"base": {"height": 1.0}}},
             {"surfaces": {"base": "#4a4c4e", "chimney": {"color": "#8a8a86", "roughness": 0.9}}},
         ):
@@ -777,6 +782,7 @@ class Look(unittest.TestCase):
         L["geometry"]["look"] = {
             "surfaces": {"cladding": "#bebeb8", "roof": {"color": "#7b8083", "roughness": 0.7, "metalness": 0.1}},
             "cladding": {"pattern": "boards", "angle_deg": 90},
+            "roof": {"pattern": "seam"},
             "trims": {"openings": True, "corners": False, "base": True},
         }
         self.assertEqual(hm.validate(L), [])
