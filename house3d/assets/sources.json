@@ -45,15 +45,15 @@
   },
   "sky-day.ktx2": {
    "url": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
-   "from": "kloofendal_48d_partly_cloudy_puresky 1K HDR, UASTC HDR 4x4",
+   "from": "kloofendal_48d_partly_cloudy_puresky 1K HDR, UASTC HDR 4x4 without zstd",
    "licence": "CC0-1.0",
-   "bytes": 460659
+   "bytes": 524496
   },
   "sky-dusk.ktx2": {
    "url": "https://polyhaven.com/a/belfast_sunset_puresky",
-   "from": "belfast_sunset_puresky 1K HDR, UASTC HDR 4x4",
+   "from": "belfast_sunset_puresky 1K HDR, UASTC HDR 4x4 without zstd",
    "licence": "CC0-1.0",
-   "bytes": 433911
+   "bytes": 524496
   }
  }
 }
