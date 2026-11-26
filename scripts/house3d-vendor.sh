@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vendor a three.js release for the house 3D view as plain ES modules.
 #
-# Usage: scripts/house3d-vendor.sh <version>     (e.g. 0.186.1)
+# Usage: scripts/house3d-vendor.sh <version>     (e.g. 0.187.0)
 #
 # Copies build/three.module.js, build/three.core.js, LICENSE and the addons the
 # engine imports (plus whatever those import) into
@@ -23,6 +23,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="$ROOT_DIR/house3d/vendor/three-$VERSION"
 ADDONS=(
   controls/OrbitControls.js
+  loaders/KTX2Loader.js
   postprocessing/EffectComposer.js
   postprocessing/RenderPass.js
   postprocessing/ShaderPass.js
@@ -75,7 +76,12 @@ for rel in $seen; do
     "$JSM/$rel" > "$DEST/examples/jsm/$rel"
 done
 
-if grep -rnE "from[[:space:]]*['\"]three['\"]" "$DEST"; then
+# KTX2Loader fetches its Basis transcoder at runtime (setTranscoderPath); the
+# worker script and the wasm are copied byte for byte, not rewritten.
+mkdir -p "$DEST/examples/jsm/libs"
+cp -R "$JSM/libs/basis" "$DEST/examples/jsm/libs/basis"
+
+if grep -rnE "from[[:space:]]*['\"]three['\"]" "$DEST" --include='*.js' --exclude-dir=basis; then
   echo "bare 'three' imports left in $DEST" >&2
   exit 1
 fi
