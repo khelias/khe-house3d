@@ -2,9 +2,10 @@
 
 A 3D view of a house drawn from its measured plan: walls, openings, roofs,
 rooms, furniture and the lot, kept as a small parametric model in Markdown and
-drawn in the browser with [three.js](https://threejs.org/). It has two styles,
-a neon wireframe and a lit one with the sun where it stands at that hour, and
-the roofs lift off to show the rooms.
+drawn in the browser with [three.js](https://threejs.org/). It has three styles:
+a neon wireframe, a lit one with the sun where it stands at that hour, and a
+photographic one with a textured lawn and sky and leafy trees. The roofs lift
+off to show the rooms.
 
 The house's own look, its colours, cladding and trims, is part of its model;
 without one the view draws a plain architectural model.
