@@ -739,8 +739,8 @@ export function mount(element, model, options = {}) {
   const roomById = Object.fromEntries((model.rooms || []).map(r => [r.id, r]));
   const { roof, frame: modelBox } = modelFrame(model);
   const { ext, E } = modelBox;
-  // the home view frames the house rooms, not the lot or the carport
-  const HOUSE_BOX = homeBox(model);
+  // the home view frames the house rooms, not the lot or the carport; the studio's its whole base
+  let homeFrame = homeBox(model);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300 * E);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -1003,6 +1003,7 @@ export function mount(element, model, options = {}) {
     const base = kit.solid(scene, kit.keep(new THREE.MeshStandardMaterial({ color: STUDIO.base, roughness: 0.85, metalness: 0 })), [x0 - m, z0 - m, x1 + m, z1 + m], [-d - 0.003, -0.003]);
     kit.keep(base.geometry);
     base.castShadow = base.receiveShadow = true;
+    homeFrame = [x0 - m, z0 - m, x1 + m, z1 + m, top];
     // the floor is the backdrop's colour unlit, so it meets the background with no horizon, and a
     // shadow catcher over it takes the key's shadow past the base
     const plane = kit.keep(new THREE.PlaneGeometry(600 * E, 600 * E));
@@ -1240,7 +1241,7 @@ export function mount(element, model, options = {}) {
   let home = null;
   function homeFor() {
     if (!home || home.aspect !== camera.aspect) {
-      const dir = homeDir(camera.aspect), h = homeView(HOUSE_BOX, dir, camera.aspect, camera.fov);
+      const dir = homeDir(camera.aspect), h = homeView(homeFrame, dir, camera.aspect, camera.fov);
       home = { aspect: camera.aspect, dir, target: h.target, distance: Math.min(controls.maxDistance, Math.max(controls.minDistance, h.distance)) };
     }
     return home;
