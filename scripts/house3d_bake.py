@@ -42,9 +42,9 @@ def use_gpu(scene):
         except TypeError:
             continue
         prefs.get_devices()
-        devices = [d for d in prefs.devices if d.type == kind]
-        if devices:
-            for d in devices:
+        gpus = [d for d in prefs.devices if d.type == kind]
+        if gpus:
+            for d in gpus:
                 d.use = True
             scene.cycles.device = "GPU"
             return kind
