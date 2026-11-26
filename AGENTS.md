@@ -17,17 +17,24 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
 - `bash scripts/check.sh` is the whole check: `bash -n` on every
   `scripts/*.sh`, `scripts/house3d-test.sh` (the model, build, scan,
   placement and copy tests, the engine tests in Node, a syntax check of every
-  module), the privacy scan when a real model is at hand (skipped in CI) and
+  module and script module), the privacy scan when a real model is at hand (skipped in CI) and
   ruff lint and format over `scripts/`. CI runs it with `RUFF=ruff`, the workspace
   commit gate before each commit.
 - `python3 -I scripts/house3d_model.py --check FILE` validates a model.
-- `python3 -I scripts/house3d_viewer.py MODEL OUTDIR` builds the standalone
-  viewer from a model's shareable layers and scans the result;
+- `python3 -I scripts/house3d_viewer.py MODEL OUTDIR [--bake DIR]` builds the
+  standalone viewer from a model's shareable layers, with DIR's baked contact
+  shadows beside it, and scans the result;
   `--scan [--count] MODEL PATH...` scans files for a model's private data.
 - `scripts/house3d-place.py serve MODEL` serves `house3d/place.html` for
   moving devices, trees and future items and writes the changes back;
   `scripts/house3d-surroundings.py` writes a surroundings layer from ETAK;
   `scripts/house3d-vendor.sh <version>` vendors a three.js release.
+- `bash scripts/house3d-bake.sh MODEL_JSON OUTDIR [SIZE]` bakes a house's
+  contact shadows from a viewer build's `model.json` into `bake.json` and
+  `bake-ao.png` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 7). A
+  laptop step: Blender (`$BLENDER`, else the macOS app) is not in CI, and
+  Cycles reaches the GPU only outside the Bash sandbox, so run it with the
+  sandbox off.
 - `bash scripts/house3d-copy.sh <commit>`, run from a consumer's root, writes
   that consumer's pinned copy; `--check` checks it. The script travels in the
   copy.
@@ -39,12 +46,16 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
 
 ```
 house3d/           the engine: core house3d.js, scene/ (kit, sun, the marker
-                   overlay and one module per layer), the standalone
-                   viewer.html, the placement page place.html, vendored three.js
+                   overlay, bake.js that applies a baked bake.json, and one
+                   module per layer), the standalone viewer.html, the
+                   placement page place.html, vendored three.js
 scripts/           house3d_model.py (the model format: its docstring is the
                    format's reference; read, validate, merge layers),
                    house3d_viewer.py (viewer build and privacy scan),
-                   house3d-place.py, house3d-surroundings.py, house3d-vendor.sh,
+                   house3d-bake.sh with house3d-bake-export.mjs (the meshes
+                   to bake, through the engine tests' harness) and
+                   house3d_bake.py (the Blender bake), house3d-place.py,
+                   house3d-surroundings.py, house3d-vendor.sh,
                    house3d-copy.sh (a consumer's copy), house3d-test.sh,
                    check.sh
 tests/house3d/     made-up test houses (fixture-model.md, the one-storey house

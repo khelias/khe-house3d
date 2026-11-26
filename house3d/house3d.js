@@ -14,7 +14,9 @@
 //
 // Styles: 'simple' (default) is the unlit neon wireframe; 'real' draws lit surfaces in the
 // house's look (kit.surface: the model's geometry.look over a neutral default) under a sun with
-// shadows. A layer branches on ctx.style === 'real' and leaves its simple path as it is;
+// shadows, on one of two stages, garden or studio, with a house's baked contact shadows in either
+// (mount()'s stage and bake options). A layer branches on ctx.style === 'real' and leaves its
+// simple path as it is;
 // tests/house3d/simple-snapshot.json pins the simple style's objects and materials. The interior
 // layer is the real style's alone (it builds null in the simple one) and reads the building
 // layer's api, so it comes after it.
@@ -69,10 +71,13 @@ import { FullScreenQuad } from './vendor/three-0.186.1/examples/jsm/postprocessi
 
 const LAYERS = ['ground', 'site', 'trees', 'gates', 'surroundings', 'pergola', 'building', 'interior', 'lights', 'winter', 'car', 'future', 'fans'];
 const QUERY = new URL(import.meta.url).search;
-// a layer module that fails to load drops its layer, not the engine; the kit, the sun and the
-// overlay (scene/overlay.js, the markers, labels and chips) are required
-const [KIT, SUN, OVERLAY, ...LOADED] = await Promise.allSettled(['kit', 'sun', 'overlay', ...LAYERS.map(id => `layers/${id}`)].map(p => import(`./scene/${p}.js${QUERY}`)));
+// a layer module that fails to load drops its layer, not the engine, and the bake module drops
+// only the bake; the kit, the sun and the overlay (scene/overlay.js, the markers, labels and
+// chips) are required
+const [KIT, SUN, OVERLAY, BAKED, ...LOADED] = await Promise.allSettled(['kit', 'sun', 'overlay', 'bake', ...LAYERS.map(id => `layers/${id}`)].map(p => import(`./scene/${p}.js${QUERY}`)));
 [KIT, SUN, OVERLAY].forEach(r => { if (r.status === 'rejected') throw r.reason; });
+if (BAKED.status === 'rejected') console.error('house3d: bake failed to load', BAKED.reason);
+const BAKE = BAKED.status === 'fulfilled' ? BAKED.value : null;
 const { createKit } = KIT.value;
 const { sunPosition, gridBearing, sunDirection, sunGlow, realLight, LOW_SUN } = SUN.value;
 const { createOverlay, OVERLAY_STYLE } = OVERLAY.value;
@@ -98,6 +103,19 @@ const FIXED_SUN = [-0.62, 0.62, -0.48];
 // pvNow(): clear-sky beam by Meinel's formula, the diffuse share of it, the system's losses and
 // the peak kW per kWp at the roofs' low slope (khe-meta house/house-hvac.md's PV assessment)
 const SOLAR_CONSTANT = 1353, DIFFUSE = 0.1, PV_LOSSES = 0.86, PV_PEAK = 0.8;
+// the studio stage's colours (the engine's, not a house's), its base round the house in metres,
+// and its light: the exposure, the soft boxes' environment, hemisphere, key and fill, towards
+// the key (front left in the home view) and the fill as unit-free directions, the key's shadow
+// penumbra in shadow-map texels and the floor's shadow. Calibrated on the test house: the lit
+// front wall and the roof within 8 L* of their look's colours, the base within 4 L* of its own;
+// AgX could not hold the white base and the grey roof both and the neutral tone mapping can
+const STUDIO_LAYERS = ['pergola', 'building', 'interior'];
+const STUDIO = {
+  backdrop: '#e7e3db', base: '#f4f3ef', light: '#fffaf4', baseDepth: 0.35, margin: 1.2,
+  exposure: 1.1, env: 0.75, hemi: 0.35, key: 2.2, fill: 0.3, keyDir: [0.5, 0.6, -0.6], fillDir: [-0.7, 0.45, -0.4], penumbra: 10, floorShadow: 0.25
+};
+// the soft boxes round the studio: [x, y, z, size] in the environment's own unit sphere
+const SOFT_BOXES = [[-6, 7, -5, 6], [7, 5, -3, 4], [0, 9, 4, 7]];
 
 export const ICONS = {
   light: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>',
@@ -570,6 +588,14 @@ export function aoWanted({ real, ao, width, roofFade }) {
 }
 
 /**
+ * stageLayers(style, stage) -> the layer ids mount() builds: the studio stage of the real style
+ * builds only the house (pergola, building, interior), every other style and stage all of LAYERS.
+ */
+export function stageLayers(style, stage) {
+  return style === 'real' && stage === 'studio' ? LAYERS.filter(id => STUDIO_LAYERS.includes(id)) : LAYERS.slice();
+}
+
+/**
  * mount(element, model, options) -> { setMarkers, setRoomChips, focusRoom, setMode, setSelection, setCar,
  *                                     setLayer, setSun, setTime, reset, resize, dispose, mode, carState,
  *                                     carScreen, layers, time, view, sun }
@@ -603,6 +629,12 @@ export function aoWanted({ real, ao, width, roofFade }) {
  *                    otherwise on from 720 px width with the roof fully off
  *   mode             the starting mode, 'roof' (default) or 'open'
  *   style            'simple' (default) or 'real'; another style is another mount
+ *   stage            the real style's stage: 'garden' (default), the lot under the sun's clock, or
+ *                    'studio', the house alone on a white base in soft studio light, where setSun
+ *                    and setTime change nothing drawn; another stage is another mount
+ *   bake             the URL of a house's bake.json (scripts/house3d-bake.sh): its contact shadows,
+ *                    fetched after the first frame and applied in the real style when every baked
+ *                    mesh matches, else none with one console warning
  *   view             { position, target } as the view getter gives it: the first framing puts
  *                    the camera there instead of the home view, so a remount keeps the user's orbit
  *   labels(roomId)   room label text; the room's own name when it returns nothing
@@ -694,6 +726,7 @@ export function mount(element, model, options = {}) {
   stage.appendChild(renderer.domElement);
 
   const style = options.style === 'real' ? 'real' : 'simple', real = style === 'real';
+  const scenery = real && options.stage === 'studio' ? 'studio' : 'garden', studio = scenery === 'studio';
   const kit = createKit(THREE, style, model.look), C = kit.C;
   root.classList.toggle('h3d-real', real);
   const scene = new THREE.Scene();
@@ -743,8 +776,9 @@ export function mount(element, model, options = {}) {
   // the marker overlay (scene/overlay.js) is switched like a layer; it has no group
   const markerLayer = { L: { id: 'markers', toggle: true, listed: () => overlay.count > 0 }, wrap: null, on: true };
   const layers = [markerLayer];
+  const built = new Set(stageLayers(style, scenery));
   BUILDERS.forEach((mod, i) => {
-    const L = mod && buildLayer(mod, LAYERS[i], ctx);
+    const L = mod && built.has(LAYERS[i]) && buildLayer(mod, LAYERS[i], ctx);
     if (!L) return;
     const wrap = new THREE.Group();
     wrap.add(L.group);
@@ -781,6 +815,11 @@ export function mount(element, model, options = {}) {
   // switchable layer hears its starting state, on or off
   const start = options.layers || {};
   layers.forEach(e => { if (e.L.toggle) switchLayer(e, start[e.L.id] !== false); });
+  // what a bake would darken, taken before the roof's fade changes an opacity (scene/bake.js)
+  let bakeList = null;
+  if (real && options.bake && BAKE) {
+    try { bakeList = BAKE.bakeTargets(layers.map(e => e.L)); } catch (e) { console.error('house3d: bake failed', e); }
+  }
 
   /* ---------- post-processing, created on first use ---------- */
   let composer = null;
@@ -867,12 +906,6 @@ export function mount(element, model, options = {}) {
     // renders only when the sun, the roof, a layer or the map itself changes (shadowsDirty)
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = true;
-    // neutral keeps the specification's colours closest
-    renderer.toneMapping = THREE.NeutralToneMapping;
-    skyTex = kit.keep(new THREE.DataTexture(new Uint8Array(SKY_PX * 4), 1, SKY_PX));
-    skyTex.colorSpace = THREE.SRGBColorSpace;
-    skyTex.magFilter = THREE.LinearFilter;
-    scene.background = skyTex;
     // the ground bounces light onto the walls: a shaded wall is a little darker than
     // a sunlit one, not near black
     hemi = new THREE.HemisphereLight('#ffffff', '#ffffff', 1);
@@ -884,6 +917,14 @@ export function mount(element, model, options = {}) {
     fill = new THREE.DirectionalLight('#ffffff', 0);
     scene.add(hemi, sun, sun.target, fill);
     pmrem = new THREE.PMREMGenerator(renderer);
+  }
+  if (real && !studio) {
+    // neutral keeps the specification's colours closest
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    skyTex = kit.keep(new THREE.DataTexture(new Uint8Array(SKY_PX * 4), 1, SKY_PX));
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    skyTex.magFilter = THREE.LinearFilter;
+    scene.background = skyTex;
     envMat = kit.keep(new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
       uniforms: { zenith: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, ground: { value: new THREE.Color() } },
@@ -918,9 +959,9 @@ export function mount(element, model, options = {}) {
     skyTex.needsUpdate = true;
   }
   const sunV = new THREE.Vector3(), corner = new THREE.Vector3(), shadowCentre = new THREE.Vector3();
-  function placeSun(dir) {
-    const [x0, z0, x1, z1] = modelBox.lotBox;
-    shadowCentre.set((x0 + x1) / 2, shadowTop / 2, (z0 + z1) / 2);
+  // the key light towards dir, its shadow camera holding the plan box [x0, z0, x1, z1] from y0 to y1
+  function placeSun(dir, [x0, z0, x1, z1] = modelBox.lotBox, y0 = 0, y1 = shadowTop) {
+    shadowCentre.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     sunV.set(dir[0], dir[1], dir[2]).normalize();
     sun.position.copy(shadowCentre).addScaledVector(sunV, ext * 2);
     sun.target.position.copy(shadowCentre);
@@ -932,7 +973,7 @@ export function mount(element, model, options = {}) {
     cam.lookAt(shadowCentre);
     cam.updateMatrixWorld();
     const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
-    for (const x of [x0, x1]) for (const y of [0, shadowTop]) for (const z of [z0, z1]) {
+    for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) {
       corner.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
       ['x', 'y', 'z'].forEach((k, i) => { b[i] = Math.min(b[i], corner[k]); b[i + 3] = Math.max(b[i + 3], corner[k]); });
     }
@@ -945,13 +986,66 @@ export function mount(element, model, options = {}) {
     cam.far = -b[2] + 4 * ext;
     cam.updateProjectionMatrix();
   }
+  // the studio: the house on a base before a floor and backdrop of one colour, lit by soft boxes,
+  // a key with a wide penumbra and a fill; the sun's clock never moves it
+  function studioStage() {
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = STUDIO.exposure;
+    const backdrop = new THREE.Color(STUDIO.backdrop);
+    scene.background = backdrop;
+    scene.fog.color.copy(backdrop);
+    // the base holds all the studio built, the roof on: the house, a carport, the pergola
+    const bounds = new THREE.Box3();
+    layers.forEach(e => { if (e.wrap) bounds.expandByObject(e.wrap); });
+    const { x: x0, z: z0 } = bounds.min, { x: x1, y: top, z: z1 } = bounds.max, m = STUDIO.margin, d = STUDIO.baseDepth;
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    // the base's top sits just under the floor, so nothing at the house's floor fights with it
+    const base = kit.solid(scene, kit.keep(new THREE.MeshStandardMaterial({ color: STUDIO.base, roughness: 0.85, metalness: 0 })), [x0 - m, z0 - m, x1 + m, z1 + m], [-d - 0.003, -0.003]);
+    kit.keep(base.geometry);
+    base.castShadow = base.receiveShadow = true;
+    // the floor is the backdrop's colour unlit, so it meets the background with no horizon, and a
+    // shadow catcher over it takes the key's shadow past the base
+    const plane = kit.keep(new THREE.PlaneGeometry(600 * E, 600 * E));
+    const floor = new THREE.Mesh(plane, kit.keep(new THREE.MeshBasicMaterial({ color: backdrop, toneMapped: false })));
+    const catcher = new THREE.Mesh(plane, kit.keep(new THREE.ShadowMaterial({ opacity: STUDIO.floorShadow })));
+    [floor, catcher].forEach((o, i) => {
+      o.rotation.x = -Math.PI / 2;
+      o.position.set(cx, -d - 0.003 + i * 0.002, cz);
+    });
+    catcher.receiveShadow = true;
+    scene.add(floor, catcher);
+    hemi.intensity = STUDIO.hemi;
+    hemi.groundColor.copy(backdrop);
+    sun.intensity = STUDIO.key;
+    sun.color.set(STUDIO.light);
+    sun.shadow.radius = STUDIO.penumbra;
+    fill.intensity = STUDIO.fill;
+    fill.color.set(STUDIO.light);
+    fill.position.set(...STUDIO.fillDir);
+    const env = new THREE.Scene(), lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 4, 4), side: THREE.DoubleSide });
+    env.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ color: '#cfccc6', side: THREE.BackSide })));
+    SOFT_BOXES.forEach(([x, y, z, size]) => {
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(size, size), lit);
+      p.position.set(x, y, z);
+      p.lookAt(0, 0, 0);
+      env.add(p);
+    });
+    envTarget = pmrem.fromScene(env, 0.03);
+    env.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    scene.environment = envTarget.texture;
+    scene.environmentIntensity = STUDIO.env;
+    // the shadow camera holds the base and where the house's shadow falls past it on the floor
+    const k = STUDIO.keyDir, run = (top + d) / k[1], sx = -k[0] * run, sz = -k[2] * run;
+    placeSun(k, [Math.min(x0, x0 + sx) - m, Math.min(z0, z0 + sz) - m, Math.max(x1, x1 + sx) + m, Math.max(z1, z1 + sz) + m], -d, top + 0.5);
+  }
+  if (studio) studioStage();
   function updateSun() {
     if (sunPlace) {
       const time = sunTime ? new Date(sunTime) : new Date(), p = sunPosition(time, sunPlace.lat, sunPlace.lon);
       sunNow = { alt: p.altitude, dir: sunDirection(p.altitude, gridBearing(p.azimuth, sunPlace.lon), sunPlace.bearing), time };
     } else sunNow = null;
     if (options.onSun) options.onSun(sunNow);
-    if (!real) return;
+    if (!real || studio) return;
     let alt, dir;
     if (sunNow) {
       alt = sunNow.alt;
@@ -1298,9 +1392,29 @@ export function mount(element, model, options = {}) {
 
     if (overlay.frame(dt)) dirty = true;
     draw();
-    if (onFirstFrame) { onFirstFrame(); onFirstFrame = null; }
+    if (!drawn) {
+      drawn = true;
+      if (options.onFirstFrame) options.onFirstFrame();
+      if (bakeList) loadBake();
+    }
   }
-  let onFirstFrame = options.onFirstFrame;
+  let drawn = false;
+  // the bake and its atlas beside it, after the first frame so they never hold it up
+  function loadBake() {
+    let url;
+    Promise.resolve()
+      .then(() => { url = new URL(options.bake, document.baseURI); return fetch(url); })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(bake => new THREE.TextureLoader().loadAsync(new URL(String(bake.atlas), url).href).then(texture => ({ bake, texture })))
+      .then(({ bake, texture }) => {
+        kit.keep(texture);
+        if (disposed) return texture.dispose();
+        const r = BAKE.applyBake({ THREE, targets: bakeList, bake, texture, keep: kit.keep });
+        if (!r.applied) console.warn(`house3d: bake not applied, ${r.reason}`);
+        invalidate();
+      })
+      .catch(e => console.warn('house3d: bake not applied', e));
+  }
   function draw() {
     if (bloomOn()) return getComposer().render();
     renderer.render(scene, camera);

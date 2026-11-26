@@ -1,6 +1,6 @@
 # ADR-001: The 3D view is our own three.js engine over the measured house model
 
-- **Status:** Accepted (2026-11-25)
+- **Status:** Accepted (2026-11-26)
 - **Related:** [estate ADR-001](https://github.com/khelias/khe-architecture/blob/main/decisions/001-repo-per-product.md), [estate ADR-012](https://github.com/khelias/khe-architecture/blob/main/decisions/012-estate-architecture-is-public.md), [estate ADR-043](https://github.com/khelias/khe-architecture/blob/main/decisions/043-household-parts-are-public-source-built-into-khe-sites.md), [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)
 
 ## Context
@@ -83,6 +83,20 @@ JSON:
    the roof colour), cited as its open-data licence asks, by the source, the
    dataset and its date. Never from Google Maps, Earth or Street View: the
    Maps Platform terms forbid building 3D models from their content.
+7. **A second stage and baked contact shadows** (amended 2026-11-26). The
+   real style has two stages, a mount option apart from the style: the
+   garden, the lot under the sun's clock, and the studio, the house alone on
+   a white base before a backdrop of one colour in soft, fixed studio light,
+   like a photographed makett. Layers never see the stage; the studio builds
+   only the building, the pergola and the interior, and its colours are the
+   engine's, not a house's. A house's contact shadows (under the eaves, in
+   window reveals, where wall meets ground) can be baked offline in Blender
+   Cycles from its viewer build, per house and from the house alone, so the
+   same bake is right in both stages, into a `bake.json` and a grey atlas
+   the consumer keeps beside its model. The engine applies a bake only when
+   every baked mesh matches the model it draws, else none with a warning; a
+   bake is a laptop step, never CI or run time, and the interior keeps the
+   screen-space contact shadows.
 
 ## Alternatives considered
 

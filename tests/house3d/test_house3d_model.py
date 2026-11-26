@@ -800,6 +800,29 @@ class BuildAndScan(unittest.TestCase):
             self.assertNotIn("car", model)
             self.assertNotIn("surroundings", model)
 
+    def test_build_copies_a_bake_and_scans_its_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bake, out = Path(tmp) / "bake", Path(tmp) / "out"
+            bake.mkdir()
+            (bake / "bake.json").write_text('{"format":1,"meshes":{}}', encoding="utf-8")
+            (bake / "bake-ao.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+            r = run(FIXTURE, out, "--bake", bake)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertEqual((out / "bake-ao.png").read_bytes(), b"\x89PNG\r\n\x1a\n")
+            page = (out / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<meta name="house3d-bake" content="./bake.json">', page)
+            entity = layers()["private"]["devices"][0]["entity"]
+            (bake / "bake.json").write_text(f'{{"note":"{entity}"}}', encoding="utf-8")
+            r = run(FIXTURE, out, "--bake", bake)
+            self.assertEqual(r.returncode, 1, "the scan reads bake.json")
+            r = run(FIXTURE, out)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertFalse((out / "bake.json").exists(), "a build without a bake drops the old one")
+            (bake / "bake-ao.png").unlink()
+            r = run(FIXTURE, Path(tmp) / "half", "--bake", bake)
+            self.assertNotEqual(r.returncode, 0, "a bake without its atlas")
+            self.assertFalse((Path(tmp) / "half").exists(), "nothing is written before the check")
+
     def test_scan_of_the_engine_is_clean(self):
         r = run("--scan", FIXTURE, ENGINE)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
