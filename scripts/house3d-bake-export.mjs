@@ -3,9 +3,13 @@
 // pergola, built through the engine tests' harness, so the keys are the ones the tests pin) as
 // world-space triangles under their key, the other opaque meshes of the two layers as occluders,
 // and a ground plane at the house's floor. Nothing outside the house occludes, so the same bake is
-// right in the garden and in the studio.
+// right in the garden and in the studio. Its hash, the sha-256 of all of that, goes into the bake as
+// `input`, so --check tells a bake that no longer fits the model or the engine, a moved wall too.
 //
-// Usage: node scripts/house3d-bake-export.mjs MODEL_JSON OUT_JSON  (MODEL_JSON a viewer build's)
+// Usage: node scripts/house3d-bake-export.mjs MODEL_JSON OUT_JSON
+//        node scripts/house3d-bake-export.mjs --check MODEL_JSON BAKE_JSON  exit 1 when stale
+// MODEL_JSON is a viewer build's model.json, or house3d_model.py --layers geometry,rooms,showcase.
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { THREE, E, buildAll, homeBox } from '../tests/house3d/engine-harness.mjs';
@@ -26,7 +30,7 @@ function triangles(mesh, matrix = mesh.matrixWorld) {
   return out;
 }
 
-/** bakeExport(model) -> { format, targets: [{ key, count, v }], occluders: [{ v }], ground: { y, rect } } */
+/** bakeExport(model) -> { format, targets: [{ key, count, v }], occluders: [{ v }], ground: { y, rect }, hash } */
 export function bakeExport(model) {
   const { built } = buildAll({ style: 'real' }, model);
   const layers = built.map(b => b.L);
@@ -47,21 +51,37 @@ export function bakeExport(model) {
     });
   }));
   const [x0, z0, x1, z1] = homeBox(model);
-  return {
+  const data = {
     format: BAKE_FORMAT,
     targets: targets.map(({ key, mesh }) => ({ key, count: bakeCount(mesh.geometry), v: triangles(mesh) })),
     occluders,
     ground: { y: (model.levels || [0])[0] || 0, rect: [x0 - GROUND_MARGIN, z0 - GROUND_MARGIN, x1 + GROUND_MARGIN, z1 + GROUND_MARGIN] }
   };
+  return { ...data, hash: createHash('sha256').update(JSON.stringify(data)).digest('hex') };
+}
+
+/** bakeStale(model, bake) -> why bake no longer fits model and this engine, or null when it does. */
+export function bakeStale(model, bake) {
+  if (!bake || bake.format !== BAKE_FORMAT) return `not a format ${BAKE_FORMAT} bake`;
+  return bake.input === bakeExport(model).hash ? null : 'baked from another model or engine';
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  const [src, out] = process.argv.slice(2);
-  if (!src || !out) {
-    console.error('usage: node scripts/house3d-bake-export.mjs MODEL_JSON OUT_JSON');
+  const args = process.argv.slice(2), check = args[0] === '--check', [src, other] = check ? args.slice(1) : args;
+  if (!src || !other) {
+    console.error('usage: node scripts/house3d-bake-export.mjs [--check] MODEL_JSON OUT_JSON|BAKE_JSON');
     process.exit(2);
   }
-  const data = bakeExport(JSON.parse(readFileSync(src, 'utf-8')));
-  writeFileSync(out, JSON.stringify(data));
-  console.log(`bake export: ${data.targets.length} targets, ${data.occluders.length} occluders`);
+  const model = JSON.parse(readFileSync(src, 'utf-8'));
+  if (check) {
+    const why = bakeStale(model, JSON.parse(readFileSync(other, 'utf-8')));
+    if (why) {
+      console.error(`bake: ${other} is stale, ${why}`);
+      process.exit(1);
+    }
+  } else {
+    const data = bakeExport(model);
+    writeFileSync(other, JSON.stringify(data));
+    console.log(`bake export: ${data.targets.length} targets, ${data.occluders.length} occluders`);
+  }
 }

@@ -34,7 +34,9 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   `bake-ao.png` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 7). A
   laptop step: Blender (`$BLENDER`, else the macOS app) is not in CI, and
   Cycles reaches the GPU only outside the Bash sandbox, so run it with the
-  sandbox off.
+  sandbox off. `node scripts/house3d-bake-export.mjs --check MODEL_JSON
+  BAKE_JSON` exits 1 when a bake no longer fits the model or the engine (a
+  consumer's check runs it).
 - `bash scripts/house3d-copy.sh <commit>`, run from a consumer's root, writes
   that consumer's pinned copy; `--check` checks it. The script travels in the
   copy.

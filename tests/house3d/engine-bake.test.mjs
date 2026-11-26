@@ -6,7 +6,7 @@ import { THREE, E, LAYERS, model, options, buildAll } from './engine-harness.mjs
 
 const { stageLayers } = await import(new URL('house3d.js', E));
 const { bakeTargets, bakeKeys, applyBake, bakeCount, materialsOf, BAKE_LAYERS, BAKE_FORMAT } = await import(new URL('scene/bake.js', E));
-const { bakeExport } = await import(new URL('../../scripts/house3d-bake-export.mjs', import.meta.url));
+const { bakeExport, bakeStale } = await import(new URL('../../scripts/house3d-bake-export.mjs', import.meta.url));
 
 const realLayers = () => buildAll({ ...options, style: 'real' }).built.map(b => b.L);
 // a bake that fits targets: every vertex at the atlas's centre
@@ -47,6 +47,16 @@ test('the export: its keys and counts are bakeKeys() of a fresh build', () => {
   }
   assert.ok(Array.isArray(data.occluders));
   assert.equal(data.ground.y, 0);
+});
+
+test('bakeStale: a bake fits only the model it was baked from', () => {
+  const { hash } = bakeExport(model);
+  assert.match(hash, /^[0-9a-f]{64}$/);
+  assert.equal(bakeStale(model, { format: BAKE_FORMAT, input: hash }), null);
+  assert.ok(bakeStale(model, { format: BAKE_FORMAT + 1, input: hash }), 'another format');
+  const moved = structuredClone(model);
+  moved.walls[0].a = [moved.walls[0].a[0] + 0.1, moved.walls[0].a[1]];
+  assert.ok(bakeStale(moved, { format: BAKE_FORMAT, input: hash }), 'a wall moved, every count the same');
 });
 
 test('applyBake: a fitting bake applies to every target, with uv1 and one clone per material', () => {

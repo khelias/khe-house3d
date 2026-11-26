@@ -739,8 +739,7 @@ export function mount(element, model, options = {}) {
   const roomById = Object.fromEntries((model.rooms || []).map(r => [r.id, r]));
   const { roof, frame: modelBox } = modelFrame(model);
   const { ext, E } = modelBox;
-  // the home view frames the house rooms, not the lot or the carport; the studio's its whole base
-  let homeFrame = homeBox(model);
+  // the home view frames the house rooms, not the lot or the carport
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300 * E);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -987,7 +986,8 @@ export function mount(element, model, options = {}) {
     cam.updateProjectionMatrix();
   }
   // the studio: the house on a base before a floor and backdrop of one colour, lit by soft boxes,
-  // a key with a wide penumbra and a fill; the sun's clock never moves it
+  // a key with a wide penumbra and a fill; the sun's clock never moves it. Returns what the home
+  // view frames: the whole base, a carport on it included
   function studioStage() {
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = STUDIO.exposure;
@@ -1003,7 +1003,6 @@ export function mount(element, model, options = {}) {
     const base = kit.solid(scene, kit.keep(new THREE.MeshStandardMaterial({ color: STUDIO.base, roughness: 0.85, metalness: 0 })), [x0 - m, z0 - m, x1 + m, z1 + m], [-d - 0.003, -0.003]);
     kit.keep(base.geometry);
     base.castShadow = base.receiveShadow = true;
-    homeFrame = [x0 - m, z0 - m, x1 + m, z1 + m, top];
     // the floor is the backdrop's colour unlit, so it meets the background with no horizon, and a
     // shadow catcher over it takes the key's shadow past the base
     const plane = kit.keep(new THREE.PlaneGeometry(600 * E, 600 * E));
@@ -1038,8 +1037,9 @@ export function mount(element, model, options = {}) {
     // the shadow camera holds the base and where the house's shadow falls past it on the floor
     const k = STUDIO.keyDir, run = (top + d) / k[1], sx = -k[0] * run, sz = -k[2] * run;
     placeSun(k, [Math.min(x0, x0 + sx) - m, Math.min(z0, z0 + sz) - m, Math.max(x1, x1 + sx) + m, Math.max(z1, z1 + sz) + m], -d, top + 0.5);
+    return [x0 - m, z0 - m, x1 + m, z1 + m, top];
   }
-  if (studio) studioStage();
+  const homeFrame = studio ? studioStage() : homeBox(model);
   function updateSun() {
     if (sunPlace) {
       const time = sunTime ? new Date(sunTime) : new Date(), p = sunPosition(time, sunPlace.lat, sunPlace.lon);

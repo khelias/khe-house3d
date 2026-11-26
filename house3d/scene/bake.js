@@ -1,6 +1,7 @@
 // Contact shadows baked offline in Blender (scripts/house3d-bake.sh, ADR-001 point 7): a house's
-// bake.json { format: 1, atlas, meshes: { key: { count, uv } } } and its grey atlas; its size,
-// distance and samples are the bake's record and read by nothing.
+// bake.json { format: 1, atlas, meshes: { key: { count, uv } } } and its grey atlas; its input is
+// the export's hash (house3d-bake-export.mjs --check), and its size, distance and samples the
+// bake's record.
 //
 // A target is a mesh of the building or pergola layer whose every material is opaque when the
 // layer is built (opacity 1, the roof's fading materials included) and takes an aoMap. Its key is
