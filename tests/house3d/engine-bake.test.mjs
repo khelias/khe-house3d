@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { THREE, E, LAYERS, model, options, buildAll } from './engine-harness.mjs';
+import { THREE, E, LAYERS, BUILDERS, model, options, makeCtx, buildAll } from './engine-harness.mjs';
 
 const { stageLayers } = await import(new URL('house3d.js', E));
 const { bakeTargets, bakeKeys, applyBake, bakeCount, materialsOf, BAKE_LAYERS, BAKE_FORMAT } = await import(new URL('scene/bake.js', E));
@@ -23,6 +23,16 @@ test('stageLayers: the studio builds only the house, in the real style only', ()
   assert.deepEqual(stageLayers('real', undefined), LAYERS);
   assert.deepEqual(stageLayers('simple', 'studio'), LAYERS, 'the stage is the real style\'s');
   assert.deepEqual(stageLayers('simple', undefined), LAYERS);
+});
+
+test('the studio: its layers build on their own, without the lot\'s, in build order', () => {
+  const { ctx, byId } = makeCtx({ ...options, style: 'real' });
+  for (const id of stageLayers('real', 'studio')) {
+    const L = BUILDERS[LAYERS.indexOf(id)].default(ctx);
+    assert.ok(L && L.id === id && L.group, id);
+    byId[id] = L;
+  }
+  assert.ok(byId.interior.group.children.length > 0, 'the interior finds the building it reads');
 });
 
 test('bakeTargets: opaque meshes of the building and pergola only, keyed per layer in order', () => {
