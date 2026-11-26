@@ -162,7 +162,7 @@ const REAL_FLAGS = {
   },
   gates: { fence: [true, false] },
   // the winter layer's caps on the crowns hang in the trees' group
-  trees: { trunk: [true, false], crown: [true, false], snow: [false, true] },
+  trees: { trunk: [true, false], bark: [true, false], crown: [true, false], snow: [false, true] },
   pergola: { frame: [true, false] },
   car: { car: [true, false], glass: [false, false] }
 };

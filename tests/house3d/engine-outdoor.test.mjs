@@ -169,6 +169,34 @@ test('real style: the neighbours darken with the night, and the simple style has
   assert.equal(simple.update, undefined);
 });
 
+test('real style: a house-sized near-rectangle neighbour gets a gable to its height, others stay blocks', () => {
+  const sur = {
+    buildings: [
+      { outline: [[40, 0], [52, 0], [52, 8], [40, 8]], height: 6 },
+      { outline: [[60, 0], [72, 0], [72, 4], [66, 4], [66, 10], [60, 10]], height: 6 },
+      { outline: [[80, 0], [92, 0], [92, 8], [80, 8]], height: 12 },
+      { outline: [[100, 0], [180, 0], [180, 30], [100, 30]], height: 8 }
+    ],
+    roads: []
+  };
+  const { ctx } = makeCtx({ ...options, style: 'real', surroundings: sur });
+  const L = buildLayer(BUILDERS[LAYERS.indexOf('surroundings')], 'surroundings', ctx), hex = name => new THREE.Color(ctx.kit.REAL[name]).getHexString();
+  const walls = L.group.children[0].material, top = m => { m.geometry.computeBoundingBox(); return m.geometry.boundingBox.max.y; };
+  assert.equal(walls.color.getHexString(), hex('neighbour'), 'the walls come first');
+  const roofs = L.group.children.filter(m => m.material.color.getHexString() === hex('neighbourRoof'));
+  assert.equal(roofs.length, 1, 'only the house-sized rectangle has a roof');
+  roofs[0].geometry.computeBoundingBox();
+  const box = roofs[0].geometry.boundingBox;
+  assert.ok(Math.abs(box.max.y - 6) < 1e-9, 'the ridge at the height');
+  assert.ok(box.min.x < 40 && box.max.x > 52, 'the roof overhangs the walls');
+  const n = roofs[0].geometry.attributes.normal;
+  for (let i = 0; i < n.count; i++) assert.ok(n.getY(i) > 0, 'both slopes face up');
+  // the gabled one's walls to the eaves (its 4 m half width at 30 degrees) and its end walls, the
+  // L-shape, the tall block and the large low one to their heights
+  const eaves = 6 - 4 * Math.tan(Math.PI / 6);
+  assert.deepEqual(L.group.children.filter(m => m.material === walls).map(top).map(y => +y.toFixed(3)).sort((a, b) => a - b), [+eaves.toFixed(3), 6, 6, 8, 12]);
+});
+
 test('lights layer: a fixture, halo and pool per light, lit only at night, casting nothing', () => {
   const { ctx, byId } = buildAll({ ...options, style: 'real' });
   const L = byId.lights, of = part => L.group.children.filter(o => o.userData.part === part);
@@ -211,7 +239,7 @@ test('site, trees and ground api: the hedges, tall plants and crowns as built, t
   assert.deepEqual(buildAll().byId.site.api.planters(), [], 'the simple style has no plants');
   const crowns = byId.trees.api.crowns();
   assert.deepEqual(Object.keys(crowns).sort(), model.site.trees.map(t => t.id).sort());
-  const t4 = model.site.trees.find(t => t.id === 't4'), crown = byId.trees.group.children.find(o => o.geometry && o.geometry.type === 'IcosahedronGeometry' && o.position.x === t4.pos[0] && o.position.z === t4.pos[1]);
+  const t4 = model.site.trees.find(t => t.id === 't4'), crown = byId.trees.group.children.find(o => o.userData.part === 'crown' && o.position.x === t4.pos[0] && o.position.z === t4.pos[1]);
   assert.deepEqual(crowns.t4.centre, crown.position.toArray());
   assert.deepEqual(crowns.t4.radii, crown.scale.toArray());
   // the ground alone, so no winter layer has snowed on it

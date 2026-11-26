@@ -60,6 +60,12 @@ JSON:
    2026-11-26): inside one wing, on one side of its ridge, where that wing is
    the surface; its panels are laid edge to edge up the face's true slope and
    its normal for the PV figure is that face's. A flat roof takes none.
+   The surroundings are stand-ins (amended 2026-11-26): ETAK gives a
+   neighbour's footprint and height but no roof, so the real style gives a
+   house-sized one (9 m high at most) whose footprint fills 95 % of its
+   smallest enclosing rectangle a gable along that rectangle's long side,
+   its ridge at the height, and leaves any other a block. LOD2 3D buildings
+   (point 6) remain the source should a neighbour's real roof matter.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
    and the made-up test houses. khe-home-assistant keeps the HA card, and it

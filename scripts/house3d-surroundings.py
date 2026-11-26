@@ -14,10 +14,11 @@ ETAK's house footprint within 1 m on every side, and the nearest street centre l
 along the street front, in front of the fence. It stops on a failure.
 
 Buildings: ETAK footprints of type 10, 20 and 50 within --radius of the lot outline, not on the
-lot itself, as flat-topped boxes. The height is ETAK's korgus_m, or 6 m (type 10 and 50) or 3 m
-(type 20) marked assumed. Roads: ETAK road areas (traffic area with its sidewalks, and
-pedestrian areas) clipped to the window, or when there are none, the street and road centre
-lines widened to their recorded width (3 m when it is missing).
+lot itself, as footprints with a height; the engine guesses their roofs (surroundings.js). The
+height is ETAK's korgus_m, or 6 m (type 10 and 50) or 3 m (type 20) marked assumed. Roads:
+ETAK road areas (traffic area with its sidewalks, and pedestrian areas) clipped to the window,
+or when there are none, the street and road centre lines widened to their recorded width (3 m
+when it is missing).
 
 The dry run prints the check residuals, counts and distances, never a coordinate. --write
 puts the result into MODEL as the private surroundings layer, a fenced block after the private
