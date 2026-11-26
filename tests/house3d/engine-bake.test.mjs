@@ -2,6 +2,7 @@
 // synthetic fixture, with the bake's export (scripts/house3d-bake-export.mjs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { THREE, E, LAYERS, model, options, buildAll } from './engine-harness.mjs';
 
 const { stageLayers } = await import(new URL('house3d.js', E));
@@ -57,6 +58,9 @@ test('bakeStale: a bake fits only the model it was baked from', () => {
   const moved = structuredClone(model);
   moved.walls[0].a = [moved.walls[0].a[0] + 0.1, moved.walls[0].a[1]];
   assert.ok(bakeStale(moved, { format: BAKE_FORMAT, input: hash }), 'a wall moved, every count the same');
+  const atlas = Buffer.from('atlas'), atlas_sha256 = createHash('sha256').update(atlas).digest('hex');
+  assert.equal(bakeStale(model, { format: BAKE_FORMAT, input: hash, atlas_sha256 }, atlas), null);
+  assert.ok(bakeStale(model, { format: BAKE_FORMAT, input: hash, atlas_sha256 }, Buffer.from('other')), 'another atlas');
 });
 
 test('applyBake: a fitting bake applies to every target, with uv1 and one clone per material', () => {

@@ -7,11 +7,13 @@
 // `input`, so --check tells a bake that no longer fits the model or the engine, a moved wall too.
 //
 // Usage: node scripts/house3d-bake-export.mjs MODEL_JSON OUT_JSON
-//        node scripts/house3d-bake-export.mjs --check MODEL_JSON BAKE_JSON  exit 1 when stale
+//        node scripts/house3d-bake-export.mjs --check MODEL_JSON BAKE_JSON  exit 1 when stale or
+//        when the atlas beside BAKE_JSON is not the one it was baked with
 // MODEL_JSON is a viewer build's model.json, or house3d_model.py --layers geometry,rooms,showcase.
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
 import { THREE, E, buildAll, homeBox } from '../tests/house3d/engine-harness.mjs';
 
 const { BAKE_LAYERS, BAKE_FORMAT, bakeTargets, bakeCount, bakeRoots, materialsOf, opaque } = await import(new URL('scene/bake.js', E));
@@ -60,10 +62,15 @@ export function bakeExport(model) {
   return { ...data, hash: createHash('sha256').update(JSON.stringify(data)).digest('hex') };
 }
 
-/** bakeStale(model, bake) -> why bake no longer fits model and this engine, or null when it does. */
-export function bakeStale(model, bake) {
+/**
+ * bakeStale(model, bake, atlas?) -> why bake no longer fits model and this engine, or its atlas
+ * (the file's bytes, when given) is not the one it was baked with; null when all fit.
+ */
+export function bakeStale(model, bake, atlas) {
   if (!bake || bake.format !== BAKE_FORMAT) return `not a format ${BAKE_FORMAT} bake`;
-  return bake.input === bakeExport(model).hash ? null : 'baked from another model or engine';
+  if (bake.input !== bakeExport(model).hash) return 'baked from another model or engine';
+  if (atlas && createHash('sha256').update(atlas).digest('hex') !== bake.atlas_sha256) return `${bake.atlas} is not the atlas it was baked with`;
+  return null;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
@@ -74,7 +81,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   }
   const model = JSON.parse(readFileSync(src, 'utf-8'));
   if (check) {
-    const why = bakeStale(model, JSON.parse(readFileSync(other, 'utf-8')));
+    const bake = JSON.parse(readFileSync(other, 'utf-8'));
+    const why = bakeStale(model, bake, readFileSync(join(dirname(other), String(bake.atlas))));
     if (why) {
       console.error(`bake: ${other} is stale, ${why}`);
       process.exit(1);

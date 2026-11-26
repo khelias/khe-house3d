@@ -13,11 +13,12 @@ the two: the side that faces into a solid is the darker. A thin surface seen fro
 shares its texels, so its lighter side wins (an eave's underside stays light). OUTDIR gets
 bake-ao.png, an
 8-bit grey PNG, and bake.json, the format house3d/scene/bake.js reads: per target key its vertex
-count and uv pairs in the export's non-indexed vertex order, and as input the export's hash, which
-house3d-bake-export.mjs --check compares. Cycles uses the GPU where Blender
+count and uv pairs in the export's non-indexed vertex order, as input the export's hash and the
+atlas's sha-256, which house3d-bake-export.mjs --check compares. Cycles uses the GPU where Blender
 finds one (Metal on the laptop, outside the Bash sandbox), else the CPU.
 """
 
+import hashlib
 import json
 import struct
 import sys
@@ -168,6 +169,7 @@ def main(argv):
     bake = {
         "format": FORMAT,
         "input": data["hash"],
+        "atlas_sha256": hashlib.sha256((out / ATLAS).read_bytes()).hexdigest(),
         "atlas": ATLAS,
         "size": size,
         "distance": DISTANCE,

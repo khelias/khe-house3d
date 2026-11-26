@@ -739,7 +739,6 @@ export function mount(element, model, options = {}) {
   const roomById = Object.fromEntries((model.rooms || []).map(r => [r.id, r]));
   const { roof, frame: modelBox } = modelFrame(model);
   const { ext, E } = modelBox;
-  // the home view frames the house rooms, not the lot or the carport
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300 * E);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -1039,6 +1038,7 @@ export function mount(element, model, options = {}) {
     placeSun(k, [Math.min(x0, x0 + sx) - m, Math.min(z0, z0 + sz) - m, Math.max(x1, x1 + sx) + m, Math.max(z1, z1 + sz) + m], -d, top + 0.5);
     return [x0 - m, z0 - m, x1 + m, z1 + m, top];
   }
+  // the home view frames the house rooms, not the lot or the carport, and in the studio its base
   const homeFrame = studio ? studioStage() : homeBox(model);
   function updateSun() {
     if (sunPlace) {
