@@ -38,18 +38,29 @@ a height or a roof id, and the furniture's y stay absolute. The ceiling is the g
 Look: geometry.look (optional) is the house's finishes in the real style; without it the engine
 draws a light, matt architectural model. surfaces maps an engine surface name (SURFACES) to
 "#rrggbb" or {"color": "#rrggbb", "roughness": 0..1, "metalness": 0..1}; cladding is
-{"pattern": "plain"} or {"pattern": "boards", "angle_deg": 0, 45 or 90} (0 horizontal);
+{"pattern": "plain"} or {"pattern": "boards", "angle_deg": 0, 45 or 90} (0 horizontal), the
+boards optionally with "board", their width in m (0.08-0.4, at 0 and 90 degrees), and "groove",
+the groove's share of a board (0.02-0.25);
 roof is {"pattern": "plain" | "seam" | "tile"} (plain by default, on pitched roofs only);
-trims {"openings", "corners", "base"} are booleans for the opening trims with their reveals and
-sill flashings, the corner boards and the base strip (the plinth), each off by default; base may
-instead be {"height": h}, 0.05 <= h <= 1.0 above floor 0 (true is 0.12). The base strip is in the
-frame's surface unless surfaces names base. The simple style ignores it.
+trims {"openings", "corners", "base", "fascia"} are booleans for the opening trims with their
+reveals and sill flashings, the corner boards, the base strip (the plinth) and the roofs' fascia
+under a lip of roof, each off by default; base may instead be {"height": h}, 0.05 <= h <= 1.0
+above floor 0 (true is 0.12). The base strip is in the frame's surface unless surfaces names
+base; the casings (opening trims, corner boards, the fascias, site.posts) unless it names trim.
+The simple style ignores it.
 
 Chimneys: geometry.chimneys (optional) is a list of {"id", "rect": [x0, z0, x1, z1], "top": y,
 "level": 0}, upright blocks from levels[level] to top, which runs at least 0.5 above that floor.
 A ground floor chimney above the ceiling is cut there like a wall up to a roof, the part above
 rising and fading with the roofs; an upper storey's rises whole. The real style draws them in the
 chimney surface.
+
+Posts and the carport roof: site.posts (optional) is a list of {"at": [x, z], "top": y,
+"size": 0.15, "braces": [[dx, dz], ...]}, square posts from the ground to top, each brace a
+45 degree knee brace from 0.6 m below the top out 0.6 m along its direction; size and braces
+are optional. site.garage_roof may carry "rim" (0-0.2 m), an upstand round each rect's edge,
+and "bands" (1-4), its fascia as that many stacked boards; without them, or with 1, one block. The
+real style draws both in the casings' surface.
 
 Usage:  house3d_model.py --check FILE
         house3d_model.py --layers geometry,rooms,showcase FILE   (or --layers all)
@@ -141,7 +152,7 @@ PANEL_GAP = 0.02
 FUTURE_FACTS, FACT_CHARS = 6, 80
 # the real style's surface names, every key of the engine's kit.js REAL (a test compares them)
 SURFACES = (
-    "cladding", "roof", "frame", "base", "chimney", "unit", "glass", "interior", "door", "floor", "tile", "deck",
+    "cladding", "roof", "frame", "base", "trim", "chimney", "unit", "glass", "interior", "door", "floor", "tile", "deck",
     "paving", "lawn", "outside", "hedge", "crown", "trunk", "fence", "car", "neighbour", "road",
     "timber", "sand", "slide", "nest", "pad", "mat", "net", "mesh", "stone", "cut", "skirting",
     "linen", "fabric", "oak", "worktop", "cabinet", "furniture", "kitchen", "kitchenTop",
@@ -153,9 +164,17 @@ SURFACES = (
 CLADDING_PATTERNS = ("plain", "boards")
 BOARD_ANGLES = (0, 45, 90)
 ROOF_PATTERNS = ("plain", "seam", "tile")
-TRIMS = ("openings", "corners", "base")
+TRIMS = ("openings", "corners", "base", "fascia")
+BOARD_WIDTH = (0.08, 0.4)  # a look's cladding board, m
+GROOVE_SHARE = (0.02, 0.25)  # a look's cladding groove, a share of the board
 BASE_HEIGHT = (0.05, 1.0)  # a look's trims.base {"height": h}: the plinth's range above floor 0
 CHIMNEY_KEYS = ("id", "rect", "top", "level")
+POST_KEYS = ("at", "top", "size", "braces")
+POST_SIZE = (0.05, 0.5)  # a site.posts size, m
+BRACE_DROP = 0.6  # how far below a post's top its knee braces start (the engine's BRACE)
+RIM = (0, 0.2)  # site.garage_roof rim, m
+BANDS = (1, 4)  # site.garage_roof bands
+BAND_GAP, BAND_MIN = 0.01, 0.02  # the engine's gap between two bands, and a band's least height
 CHIMNEY_MIN = 0.5  # how far a chimney's top stands at least above its level's floor
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 BLOCK = re.compile(r"^```json house3d:(\w+)[ \t]*\n(.*?)^```[ \t]*$", re.MULTILINE | re.DOTALL)
@@ -226,6 +245,10 @@ def _door_swing_ok(o, w):
 
 def _num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _within(v, lo_hi):
+    return _num(v) and lo_hi[0] <= v <= lo_hi[1]
 
 
 def _point(v, n=2):
@@ -738,6 +761,35 @@ def validate(layers):
                 rect(f"site.garage_roof.rects[{i}]", r)
         if not (_point(gr.get("y")) and gr["y"][0] < gr["y"][1]):
             bad("site.garage_roof: y must be [y0, y1] with y0 < y1")
+        if "rim" in gr and not _within(gr["rim"], RIM):
+            bad(f"site.garage_roof: rim {gr['rim']!r} is not between {RIM[0]} and {RIM[1]} m")
+        b = gr.get("bands", 1)
+        if not (isinstance(b, int) and not isinstance(b, bool) and BANDS[0] <= b <= BANDS[1]):
+            bad(f"site.garage_roof: bands {b!r} is not a whole number {BANDS[0]} to {BANDS[1]}")
+        elif _point(gr.get("y")) and gr["y"][1] - gr["y"][0] < b * BAND_MIN + (b - 1) * BAND_GAP:
+            bad(f"site.garage_roof: {b} bands do not fit in y {gr['y']}")
+    posts = site.get("posts", [])
+    if not isinstance(posts, list):
+        bad("site.posts: not a list")
+        posts = []
+    for i, p in enumerate(posts):
+        where = f"site.posts[{i}]"
+        if not isinstance(p, dict):
+            bad(f"{where}: not a JSON object")
+            continue
+        for k in sorted(set(p) - set(POST_KEYS)):
+            bad(f"{where}: unknown key {k!r}")
+        if not _point(p.get("at")):
+            bad(f"{where}: at must be [x, z]")
+        elif lot and not _inside(p["at"], lot):
+            bad(f"{where}: at is outside the lot")
+        if not (_num(p.get("top")) and p["top"] > BRACE_DROP):
+            bad(f"{where}: top is not a height over {BRACE_DROP} m")
+        if "size" in p and not _within(p["size"], POST_SIZE):
+            bad(f"{where}: size {p['size']!r} is not between {POST_SIZE[0]} and {POST_SIZE[1]} m")
+        braces = p.get("braces", [])
+        if not (isinstance(braces, list) and all(_point(d) and math.hypot(*d) > 0 for d in braces)):
+            bad(f"{where}: braces must be a list of [dx, dz] directions")
     for i, u in enumerate(site.get("outdoor_units", [])):
         rect(f"site.outdoor_units[{i}]", u.get("rect"))
         if not (_point(u.get("y")) and u["y"][0] < u["y"][1]):
@@ -948,9 +1000,16 @@ def _validate_look(look, bad):
                 f"look.cladding: pattern {c.get('pattern')!r} is not one of {', '.join(CLADDING_PATTERNS)}"
             )
         else:
-            allowed = {"pattern", "angle_deg"} if c["pattern"] == "boards" else {"pattern"}
+            allowed = (
+                {"pattern", "angle_deg", "board", "groove"}
+                if c["pattern"] == "boards"
+                else {"pattern"}
+            )
             for k in sorted(set(c) - allowed):
                 bad(f"look.cladding: unknown key {k!r} for {c['pattern']}")
+            for k, (lo, hi) in (("board", BOARD_WIDTH), ("groove", GROOVE_SHARE)):
+                if k in c and not _within(c[k], (lo, hi)):
+                    bad(f"look.cladding: {k} {c[k]!r} is not between {lo} and {hi}")
             a = c.get("angle_deg", 45)
             if c["pattern"] == "boards" and not (_num(a) and a in BOARD_ANGLES):
                 bad(f"look.cladding: angle_deg {a!r} is not one of 0, 45, 90")

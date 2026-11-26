@@ -100,7 +100,7 @@ test('look: without one, no building material in the fixture\'s cladding, frame 
 test('look: the fixture\'s look draws its own colours, trims and boards', () => {
   const { ctx, byId } = real(model);
   assert.equal(hexOf(ctx.kit, 'cladding'), 'bebeb8');
-  assert.deepEqual(ctx.kit.look, { cladding: { pattern: 'boards', angle_deg: 45 }, roof: { pattern: 'plain' }, trims: { openings: true, corners: true, base: true } });
+  assert.deepEqual(ctx.kit.look, { cladding: { pattern: 'boards', angle_deg: 45 }, roof: { pattern: 'plain' }, trims: { openings: true, corners: true, base: true, fascia: false } });
   assert.ok(partsOf(byId.building, 'trim').length > 0);
 });
 
@@ -122,7 +122,7 @@ test('look: an unknown or malformed surface, angle, roof or trim in the look is 
   assert.deepEqual(kit.look.roof, { pattern: 'plain' });
   assert.equal(kit.roofMap(), null);
   assert.deepEqual(createKit(THREE, 'real', { roof: 'seam' }).look.roof, { pattern: 'plain' });
-  assert.deepEqual(kit.look.trims, { openings: false, corners: false, base: false });
+  assert.deepEqual(kit.look.trims, { openings: false, corners: false, base: false, fascia: false });
 });
 
 test('look: boards at 45 are the default angle, at 0 and 90 grooves along rows or columns that tile', () => {
@@ -140,6 +140,56 @@ test('look: boards at 45 are the default angle, at 0 and 90 grooves along rows o
     assert.ok(across[0] < 255, `${angle}: a groove at the edge`);
     assert.equal(across[S - 1], 255, `${angle}: a board up to the other edge`);
   }
+});
+
+test('look: a board width sets the boards across the tile at 0 and 90, a groove share their groove', () => {
+  const S = 512, column = d => Array.from({ length: S }, (_, k) => d[k * 4]);
+  const grooves = look => {
+    const across = column(createKit(THREE, 'real', { cladding: { pattern: 'boards', angle_deg: 90, ...look } }).boards()[0].image.data);
+    return { starts: across.filter((v, k) => v < 255 && across[(k + S - 1) % S] === 255).length, dark: across.filter(v => v < 255).length };
+  };
+  assert.equal(grooves({ board: 0.2 }).starts, 10);
+  assert.equal(grooves({ board: 0.18 }).starts, 11);
+  assert.ok(grooves({ board: 0.2, groove: 0.2 }).dark > 3 * grooves({ board: 0.2 }).dark, 'a wider groove');
+  // out of range: the defaults
+  assert.equal(grooves({ board: 0.01, groove: 0.9 }).starts, 17);
+  assert.deepEqual(grooves({ board: 0.01, groove: 0.9 }), grooves({}));
+});
+
+test('look: a look naming trim draws an opening\'s casing in it and its frame in frame; without, one colour', () => {
+  const surfaces = { ...model.look.surfaces, trim: '#b0b2b4' };
+  const colours = m => {
+    const { byId } = real(m);
+    const trims = new Set(partsOf(byId.building, 'trim').map(o => o.material.color.getHexString()));
+    const corners = new Set(partsOf(byId.building, 'corner').filter(o => o.geometry.type === 'BoxGeometry').map(o => o.material.color.getHexString()));
+    return { trims: [...trims], corners: [...corners] };
+  };
+  const frame = new THREE.Color(model.look.surfaces.frame).getHexString();
+  assert.deepEqual(colours(model), { trims: [frame], corners: [frame] });
+  assert.deepEqual(colours({ ...model, look: { ...model.look, surfaces } }), { trims: ['b0b2b4'], corners: ['b0b2b4'] });
+  // the frame proper keeps the frame's colour
+  const { byId } = real({ ...model, look: { ...model.look, surfaces } });
+  const bars = [];
+  byId.building.group.traverse(o => { if (o.isMesh && !o.userData.part && o.geometry.type === 'BoxGeometry' && o.material.color.getHexString() === frame) bars.push(o); });
+  assert.ok(bars.length > 0, 'frames in frame');
+});
+
+test('look: trims.fascia splits each roof\'s edge band into a fascia under a lip of roof', () => {
+  const surfaces = { ...model.look.surfaces, trim: '#b0b2b4' };
+  const bands = look => {
+    const { byId } = real({ ...model, look });
+    return byId.building.lift.children.filter(o => o.userData.roof).map(o => [o.geometry.groups.length, ...[o.material].flat().map(m => m.color.getHexString())]);
+  };
+  const frame = new THREE.Color(model.look.surfaces.frame).getHexString(), roofHex = new THREE.Color(model.look.surfaces.roof.color).getHexString();
+  bands({ ...model.look, surfaces }).forEach(b => assert.deepEqual(b.slice(1), [roofHex, frame]));
+  const on = bands({ ...model.look, surfaces, trims: { ...model.look.trims, fascia: true } });
+  const fasciaOf = [roofHex, 'b0b2b4', roofHex], lipOf = [roofHex, roofHex, roofHex];
+  // a wing roof is one mesh of three groups, a shed roof two slabs: the fascia's and the lip's
+  const wings = on.filter(b => b[0] === 3), sheds = on.filter(b => b[0] === 2);
+  assert.equal(wings.length + sheds.length, on.length);
+  wings.forEach(b => assert.deepEqual(b.slice(1), fasciaOf));
+  assert.equal(sheds.filter(b => b[2] === 'b0b2b4').length, sheds.filter(b => b[2] === roofHex).length, 'a lip slab per fascia slab');
+  sheds.forEach(b => assert.deepEqual(b.slice(1), b[2] === 'b0b2b4' ? fasciaOf : lipOf));
 });
 
 test('look: roofMap() is null for plain, periodic seams along u for seam, and staggered courses for tile', () => {

@@ -62,16 +62,20 @@ JSON:
    and khe-makett each carry a pinned, checked copy of the engine, written
    by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
-6. **A house's look is model data** (amended 2026-11-25). The real style's
+6. **A house's look is model data** (amended 2026-11-26). The real style's
    finishes are the model's `look` in its geometry layer: colours and
    finishes of the engine's named surfaces, the cladding's pattern (plain,
-   or boards at 0, 45 or 90 degrees), the pitched roofs' profile (`roof.pattern`:
+   or boards at 0, 45 or 90 degrees, with a board width and groove of their
+   own), the pitched roofs' profile (`roof.pattern`:
    `plain`, `seam` standing-seam metal, or `tile` roof tiles; flat roofs stay
    plain) and which trims are drawn (opening trims, corner boards, the base
-   strip). The base strip is the plinth: it
+   strip, a fascia under a lip of roof). The base strip is the plinth: it
    may have a height of its own above floor 0, and is drawn in the frame's
    surface unless the look names a base surface, so a look written before
-   the plinth had a surface draws as it did. Without one the engine draws a
+   the plinth had a surface draws as it did. The casings (opening trims,
+   corner boards, fascias and posts) are likewise in the frame's surface
+   unless the look names a trim surface, which lets light casings sit round
+   dark frames. Without one the engine draws a
    light, matt architectural model with plain walls and no trims, so a
    house never wears another house's look. The geometry layer, not a layer
    of its own: the look is as shareable as the geometry and both shells

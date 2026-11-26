@@ -191,6 +191,40 @@ test('real style: a panel wall is anthracite, without a base strip', () => {
   assert.deepEqual([panel.children[0].castShadow, panel.children[0].receiveShadow], [true, true]);
 });
 
+test('posts: each post and knee brace drawn, a brace at 45 degrees reaching its top; none without site.posts', () => {
+  const m = structuredClone(model);
+  m.site.posts = [{ at: [33.4, 3.6], top: 2.5, braces: [[1, 0], [0, -1]] }, { at: [37.3, 3.6], top: 2.5, size: 0.12, braces: [[-1, 0]] }];
+  const simple = buildAll({ ...options, style: 'simple' }, m).byId.building, { ctx, byId } = buildAll({ ...options, style: 'real' }, m);
+  for (const L of [simple, byId.building]) {
+    assert.equal(partsOf(L, 'post').length, 2);
+    assert.equal(partsOf(L, 'brace').length, 3);
+  }
+  byId.building.group.updateMatrixWorld(true);
+  partsOf(byId.building, 'brace').forEach(b => {
+    const box = new THREE.Box3().setFromObject(b);
+    assert.ok(Math.abs(box.max.y - 2.5) < 0.06, `top ${box.max.y}`);
+    assert.ok(Math.abs(box.max.y - box.min.y - 0.6) < 0.12, `drop ${box.max.y - box.min.y}`);
+  });
+  const post = partsOf(byId.building, 'post')[0];
+  assert.equal(post.material.color.getHexString(), hexOf(ctx.kit, 'frame'), 'in the casings\' surface, the frame\'s without trim');
+  const plain = buildAll({ ...options, style: 'real' }).byId.building;
+  for (const part of ['post', 'brace', 'rim', 'band']) assert.equal(partsOf(plain, part).length, 0, part);
+});
+
+test('carport: a rim stands round each rect, bands stack the fascia with a gap; without them one block', () => {
+  const m = structuredClone(model);
+  Object.assign(m.site.garage_roof, { rim: 0.06, bands: 3 });
+  const { byId } = buildAll({ ...options, style: 'real' }, m);
+  const inLift = part => { const out = []; byId.building.lift.traverse(o => { if (o.userData.part === part) out.push(o); }); return out; };
+  const rects = m.site.garage_roof.rects.length;
+  assert.equal(inLift('rim').length, 4 * rects);
+  assert.equal(inLift('band').length, 4 * 3 * rects);
+  inLift('rim').forEach(o => assert.ok(o.position.y > 2.7 && o.position.y < 2.76));
+  const tops = [...new Set(inLift('band').map(o => +(o.position.y + o.geometry.parameters.height / 2).toFixed(3)))].sort();
+  assert.equal(tops.length, 3);
+  assert.equal(tops[2], 2.7);
+});
+
 test('real style: every floor has its own material', () => {
   const { byId } = buildAll({ ...options, style: 'real' });
   const floors = [];
