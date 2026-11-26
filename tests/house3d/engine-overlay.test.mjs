@@ -45,6 +45,16 @@ test('collide: an alert never hides, a chip keeps at least its compact form', ()
   assert.deepEqual([room.get('c'), room.get('m')], [0, 0]);
 });
 
+test('collide: a keep marker crowded out of its dot still shows its dot', () => {
+  const m = (id, x, keep) => ({ id, kind: 'marker', keep, x, y: 50, dist: x, was: false, sizes: [[40, 40], [12, 12]] });
+  assert.deepEqual([...collide([m('a', 50), m('b', 70, false)]).values()], [0, -1]);
+  assert.deepEqual([...collide([m('a', 50), m('b', 70, true)]).values()], [0, 1]);
+  // a farther marker's dot gets its try before a forced camera dot takes the place
+  const three = collide([m('a', 50), m('cam', 70, true), m('c', 85, false)]);
+  assert.equal(three.get('cam'), 1);
+  assert.equal(three.get('c'), 1);
+});
+
 test('collide: a chip beats a crowded marker\'s dot', () => {
   // b does not fit at full size under a; its dot and the chip want the same spot
   const levels = collide([
