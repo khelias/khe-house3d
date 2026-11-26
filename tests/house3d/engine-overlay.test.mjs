@@ -1,8 +1,8 @@
-// Engine tests of the marker overlay's pure helpers (scene/overlay.js: hitRect, collide, inChip)
+// Engine tests of the marker overlay's pure helpers (scene/overlay.js: hitRect, collide, inChip, markerClass)
 // and the core's tap rule (tapAction). The set-up is in engine-harness.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tapAction, collide, inChip, hitRect } from './engine-harness.mjs';
+import { tapAction, collide, inChip, hitRect, markerClass } from './engine-harness.mjs';
 
 test('hitRect: the rectangle under the point, the nearest centre of several, pad for touch', () => {
   const rects = [{ id: 'a', x: 100, y: 100, w: 32, h: 32 }, { id: 'b', x: 120, y: 100, w: 32, h: 32 }, { id: 'c', x: 300, y: 300, w: 60, h: 32 }];
@@ -116,4 +116,12 @@ test('tapAction: an overlay hit first, then car, feature, room, empty space', ()
   assert.deepEqual(tapAction(null, { feature: 'pv', target: {} }), { feature: 'pv' });
   assert.deepEqual(tapAction(null, { room: 'r2', target: {} }), { room: 'r2' });
   assert.deepEqual(tapAction(null, null), { none: true });
+});
+
+test('markerClass: round without a value, cam for a camera, its state, pulse and the selection', () => {
+  assert.equal(markerClass({ icon: 'camera', state: 'idle' }), 'h3d-marker round cam');
+  assert.equal(markerClass({ icon: 'camera', state: 'off' }, true), 'h3d-marker round cam off sel');
+  assert.equal(markerClass({ icon: 'temp', value: '21,3°', state: 'idle' }), 'h3d-marker');
+  assert.equal(markerClass({ icon: 'motion', state: 'on', pulse: true }), 'h3d-marker round on pulse');
+  assert.equal(markerClass({ icon: 'light', value: '', state: 'alert' }, false), 'h3d-marker round alert');
 });

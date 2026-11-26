@@ -34,8 +34,9 @@ We render the house with our own engine on three.js, built from the model's
 JSON:
 
 1. **One engine, two shells.** The engine builds the scene from model JSON
-   and draws generic markers. The HA card feeds it live states and opens
-   more-info; the standalone viewer feeds it nothing from HA.
+   and draws generic markers. The HA card feeds it live states and answers a
+   tap with its own sheets, a camera's picture or more-info; the standalone
+   viewer feeds it nothing from HA.
 2. **The model is split into layers:** geometry and rooms (shareable),
    private (family room names and every device, HA only) and showcase
    (standalone only). A build reads only the layers its shell may carry and
