@@ -1,6 +1,6 @@
 # ADR-001: The 3D view is our own three.js engine over the measured house model
 
-- **Status:** Accepted (2026-11-26)
+- **Status:** Accepted (2026-11-27)
 - **Related:** [estate ADR-001](https://github.com/khelias/khe-architecture/blob/main/decisions/001-repo-per-product.md), [estate ADR-012](https://github.com/khelias/khe-architecture/blob/main/decisions/012-estate-architecture-is-public.md), [estate ADR-043](https://github.com/khelias/khe-architecture/blob/main/decisions/043-household-parts-are-public-source-built-into-khe-sites.md), [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)
 
 ## Context
@@ -77,11 +77,15 @@ JSON:
    and khe-makett each carry a pinned, checked copy of the engine, written
    by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
-6. **A house's look is model data** (amended 2026-11-26). Each style has a
+6. **A house's look is model data** (amended 2026-11-27). Each style has a
    look of its own that gives its materials by role, its sky and its light:
    the simple wireframe, Päris (`real`) and Foto (`photo`), which is Päris
-   with a photographed lawn, street and sky and leaf cards on the crowns and
-   hedges, and a light tier for weaker devices. A layer asks its look and
+   with a photographed lawn, meadow past the lot, street, paving and sky
+   (the paving in the model's own colour), leaf cards on the crowns and
+   hedges, in winter bare branches with twig cards under an overcast sky,
+   and a light tier for weaker devices. A look may dress a tree's crown and
+   its bare crown, a hedge and the ground past the lot (`look.js` lists the
+   hooks). A layer asks its look and
    branches only on whether the style is lit, so a new style is a new look,
    not a branch in every layer; the studio stage is Päris's in every lit
    style. The lit styles' finishes are the model's `look` in its geometry layer: colours and

@@ -32,11 +32,13 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   `scripts/house3d-vendor.sh <version>` vendors a three.js release.
 - `house3d/assets/` holds Foto's textures, encoded from the sources in its
   `sources.json` with `basisu` (Homebrew `basis_universal`): colour maps and
-  the leaf cards ETC1S, normal maps UASTC with `-linear -normal_map`, all
+  the leaf and twig cards ETC1S (the bare twig card is drawn for the repo, CC0),
+  normal maps UASTC with `-linear -normal_map` (the paving's at 512), all
   with `-mipmap`, the skies `-hdr -y_flip -ktx2_no_zstandard`: a device with HDR ASTC
   reads them on the main thread, where a zstd file needs zstddec's wasm from a `data:`
   URL that khe.ee's `connect-src` refuses. A new sky's `sunU` and horizon
-  colour in `scene/photo.js` are measured from its `.hdr` before encoding.
+  colour in `scene/photo.js` are measured from its `.hdr` before encoding, and
+  its `clean` edge, where the panorama's smeared fill ends, read off in the viewer.
 - `bash scripts/house3d-bake.sh MODEL_JSON OUTDIR [SIZE]` bakes a house's
   contact shadows from a viewer build's `model.json` into `bake.json` and
   `bake-ao.png` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 7). A
