@@ -29,7 +29,8 @@ also ridge "x" or "z" (the axis its ridge runs along); flat has y. The height at
 highest wing there: hip eave_y + slope * the distance to the wing's nearest edge, gable to the
 nearest edge across the ridge, flat y; outside every wing the nearest wing's at the nearest
 point. roof_height(), roof_rects(), roof_bbox() and roof_area() read every kind. PV items lie
-on shed roofs only.
+on a shed roof inside its outline, or on one face of a hip or gable roof: inside one wing, on one
+side of its ridge, where that wing is the roof's surface; never on a flat roof.
 
 Storeys: geometry.levels is the floor heights [0, 3.05, ...] (default [0]); a wall or room has
 level (default 0). A wall's openings, doors and sills are relative to levels[level]; its top,
@@ -318,16 +319,20 @@ def roof_slope(roof):
     return roof["slope"] if _num(roof.get("slope")) else math.tan(math.radians(roof["pitch_deg"]))
 
 
-def _wing_height(roof, q, x, z):
-    kind = _kind(roof)
-    if kind == "flat":
-        return roof["y"]
+def _edge_distances(roof, q, x, z):
+    """(x, z)'s distances to wing q's edges across its ridge (a gable's two, a hip's four, in
+    the order x0, x1, z0, z1); the nearest names the face the point lies on."""
     x0, z0, x1, z1 = q
-    if kind == "gable":
-        d = min(z - z0, z1 - z) if roof["ridge"] == "x" else min(x - x0, x1 - x)
-    else:
-        d = min(x - x0, x1 - x, z - z0, z1 - z)
-    return roof["eave_y"] + roof_slope(roof) * d
+    ds = [x - x0, x1 - x, z - z0, z1 - z]
+    if _kind(roof) == "gable":
+        ds = ds[2:] if roof["ridge"] == "x" else ds[:2]
+    return ds
+
+
+def _wing_height(roof, q, x, z):
+    if _kind(roof) == "flat":
+        return roof["y"]
+    return roof["eave_y"] + roof_slope(roof) * min(_edge_distances(roof, q, x, z))
 
 
 def roof_height(roof, x, z):
@@ -452,6 +457,59 @@ def _quad_in_ring(corners, ring):
     quad = list(zip(corners, corners[1:] + corners[:1]))
     edges = list(zip(ring, ring[1:] + ring[:1]))
     return not any(_segments_cross(p, q, a, b) for p, q in quad for a, b in edges)
+
+
+PV_SAMPLE = 0.05  # m: the grid pv_face() reads a quad's surface on
+
+
+def pv_face(roof, corners, eps=1e-6):
+    """The face of a hip or gable roof a plan quad lies on, as the plan axis its slope runs
+    along ("x" or "z"), or None when the quad is not on one face: its corners inside one wing
+    and on its centre's side of the ridge (a hip's faces are convex, so the corners settle it;
+    one on the ridge counts), with that wing the roof's surface all over it. Where wings meet
+    the surface is not convex, so a higher wing crossing the quad's middle misses every corner:
+    the surface is read on a PV_SAMPLE grid, its edges included."""
+    cx = sum(c[0] for c in corners) / 4
+    cz = sum(c[1] for c in corners) / 4
+    x0, z0 = min(c[0] for c in corners), min(c[1] for c in corners)
+    x1, z1 = max(c[0] for c in corners), max(c[1] for c in corners)
+    nx, nz = math.ceil((x1 - x0) / PV_SAMPLE), math.ceil((z1 - z0) / PV_SAMPLE)
+    grid = [
+        (x0 + (x1 - x0) * i / nx, z0 + (z1 - z0) * j / nz)
+        for i in range(nx + 1)
+        for j in range(nz + 1)
+    ]
+    for q in roof["rects"]:
+        if not all(q[0] <= x <= q[2] and q[1] <= z <= q[3] for x, z in corners):
+            continue
+        mid = _edge_distances(roof, q, cx, cz)
+        face = mid.index(min(mid))
+        if all(
+            (ds := _edge_distances(roof, q, x, z))[face] <= min(ds) + eps for x, z in corners
+        ) and all(
+            abs(roof_height(roof, x, z) - _wing_height(roof, q, x, z)) <= eps for x, z in grid
+        ):
+            if _kind(roof) == "gable":
+                return "z" if roof["ridge"] == "x" else "x"
+            return "x" if face < 2 else "z"
+    return None
+
+
+def pv_size(item, roof, axis=None):
+    """A pv item's [w, d] along its roof: its plan size, on a hip or gable face with the side
+    that runs up the slope lengthened to its true length (a shed roof's low pitch is left as
+    planned), so the panels lie edge to edge on the face as they do in the engine. axis is
+    pv_face()'s answer when the caller has it."""
+    w, d = item["size"]
+    if not axis and _kind(roof) in ("hip", "gable"):
+        axis = pv_face(roof, future_corners(item))
+    if not axis:
+        return [w, d]
+    stretch = math.hypot(1, roof_slope(roof))
+    along_x = item.get("rot", 0) in (0, 180)
+    if (axis == "x") == along_x:
+        return [w * stretch, d]
+    return [w, d * stretch]
 
 
 def panel_fit(w, d):
@@ -1168,23 +1226,33 @@ def _validate_future(model, roofs, bad):
         roof = roofs.get(it.get("roof")) if isinstance(it.get("roof"), str) else None
         if not roof:
             bad(f"{where}: roof {it.get('roof')!r} is not a roof")
-        elif _kind(roof) != "shed":
-            bad(f"{where}: roof {it['roof']} is not a shed roof; PV lies on shed roofs only")
+        elif _kind(roof) == "flat":
+            bad(f"{where}: roof {it['roof']} is flat; PV lies on a shed, hip or gable roof")
             continue
         if not (placed and sized and it.get("rot", 0) in FUTURE_ROT):
             continue
-        outline = roof.get("outline") if roof else None
-        if (
-            isinstance(outline, list)
-            and len(outline) >= 3
-            and all(_point(p) for p in outline)
-            and not _quad_in_ring(future_corners(it), outline)
-        ):
-            bad(f"{where}: its rectangle is not inside roof {it['roof']}'s outline")
-        if panels and panel_fit(*it["size"]) < panels:
+        fit = it["size"]
+        if roof and _kind(roof) != "shed":
+            if _roof_problems(it["roof"], roof):
+                continue
+            axis = pv_face(roof, future_corners(it))
+            if not axis:
+                bad(f"{where}: its rectangle is not on one face of roof {it['roof']}")
+                continue
+            fit = pv_size(it, roof, axis)
+        elif roof:
+            outline = roof.get("outline")
+            if (
+                isinstance(outline, list)
+                and len(outline) >= 3
+                and all(_point(p) for p in outline)
+                and not _quad_in_ring(future_corners(it), outline)
+            ):
+                bad(f"{where}: its rectangle is not inside roof {it['roof']}'s outline")
+        if panels and panel_fit(*fit) < panels:
             bad(
-                f"{where}: {panels} panels do not fit in {it['size'][0]} x {it['size'][1]} m "
-                f"(at most {panel_fit(*it['size'])})"
+                f"{where}: {panels} panels do not fit in {fit[0]:g} x {fit[1]:g} m "
+                f"(at most {panel_fit(*fit)})"
             )
 
 

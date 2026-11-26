@@ -53,7 +53,7 @@
 //   dispose()?      frees what the kit's list and the scene traversal do not
 // ctx: THREE, kit, C (kit.C), model, options, style ('simple' | 'real'),
 //   frame { lotBox, wallBox, ext, E, lotCx, lotCz } (modelFrame),
-//   roof { fns, flat, under, topFn, gap, top(id), faces(id), kinks(id), clip }: fns[id], under(id),
+//   roof { fns, flat, under, topFn, gap, top(id), faces(id), planeAt(id, x, z), kinks(id), clip }: fns[id], under(id),
 //   topFn(top) and top(id) (the slab's top) are (x, z) -> y for every roof kind (modelFrame()), ceiling, reduceMotion, state (read-only: mode,
 //   roofFade, hovered, selection, night: 0 by day to 1 at night, the real style's only, sun: the
 //   sun's { alt, dir, time } in both styles, null without a place), layer(id), screen(x, y, z) -> { x, y } | null, invalidate().
@@ -153,10 +153,10 @@ const STYLE = `
 ` + OVERLAY_STYLE;
 
 /**
- * modelFrame(model) -> { roof: { fns, flat, under, topFn, gap, top, faces, kinks, chimneys }, frame: { lotBox, wallBox, ext, E, lotCx, lotCz } }
+ * modelFrame(model) -> { roof: { fns, flat, under, topFn, gap, top, faces, planeAt, kinks, chimneys }, frame: { lotBox, wallBox, ext, E, lotCx, lotCz } }
  * The model's roof height functions (x, z) -> y and its framing boxes, as ctx carries them;
  * roof.top(id) is roofTop() for that roof, roof.faces(id) roofFaces() of it (null for a shed
- * roof), roof.kinks(id) the plan segments where its faces meet or end, for the wall tops, and
+ * roof), roof.planeAt(id, x, z) faceAt() of those faces (null for a shed roof), roof.kinks(id) the plan segments where its faces meet or end, for the wall tops, and
  * roof.clip(poly, [a, b, c]) a convex plan polygon cut to where a x + b z + c <= 0, and
  * roof.chimneys chimneysOf() the model, which rise with the roofs.
  */
@@ -182,7 +182,8 @@ export function modelFrame(model) {
     }));
     return [...seen.values()];
   })());
-  const roof = { fns, flat, under, topFn, gap: ROOF_GAP, faces, kinks, clip: clipHalf, chimneys: chimneysOf(model) };
+  const planeAt = (id, x, z) => { const f = faces(id); return f ? faceAt(f, [x, z]) : null; };
+  const roof = { fns, flat, under, topFn, gap: ROOF_GAP, faces, planeAt, kinks, clip: clipHalf, chimneys: chimneysOf(model) };
   roof.top = id => roofTop(roof, model, id);
 
   // the lot sets the scale, the fog and the shadow box; homeBox() frames the home view
@@ -314,6 +315,19 @@ export function roofFaces(r) {
 }
 
 /**
+ * faceAt(roofFaces(r), [x, z]) -> the plane [a, b, c] (y = a x + b z + c) of the face plan point
+ * [x, z] lies in, the first on a shared edge; null off the roof.
+ */
+export function faceAt({ faces }, [x, z]) {
+  const eps = 1e-9;
+  const hit = faces.find(({ poly }) => {
+    const sides = poly.map((p, i) => { const q = poly[(i + 1) % poly.length]; return (q[0] - p[0]) * (z - p[1]) - (q[1] - p[1]) * (x - p[0]); });
+    return sides.every(c => c >= -eps) || sides.every(c => c <= eps);
+  });
+  return hit ? hit.plane : null;
+}
+
+/**
  * chimneysOf(model) -> [{ id, rect, top, level, cut }]: geometry.chimneys with level 0 filled in
  * and cut, the ceiling where a ground floor chimney runs above it, else 0; the card's model is
  * not validated, so an entry without a name, or not a rect on a level of the model with its top
@@ -368,12 +382,25 @@ export function seasonWindow(date) {
   return `${m >= 10 ? y : y - 1}-11`;
 }
 
+// the card asks for a PV item's normal on every sun tick; a roof's faces are built once
+const NORMAL_FACES = new WeakMap();
+
 /**
- * roofNormal(model, roofId) -> [x, y, z]: the unit normal of a shed roof's top, leaning towards
- * the side it falls to.
+ * roofNormal(model, roofId, at) -> [x, y, z]: the unit normal of a roof's top, leaning towards
+ * the side it falls to: a shed roof's plane, a hip or gable roof's face at plan point at [x, z],
+ * which a caller on such a roof passes (straight up off the roof or without at, and on a flat
+ * roof).
  */
-export function roofNormal(model, roofId) {
-  const r = model.roofs[roofId], slope = r.slope ?? Math.tan(r.pitch_deg * D2R), sign = r.falls === 'west' ? -1 : 1;
+export function roofNormal(model, roofId, at) {
+  const r = model.roofs[roofId];
+  if (roofKind(r) !== 'shed') {
+    if (!NORMAL_FACES.has(r)) NORMAL_FACES.set(r, roofFaces(r));
+    const p = at ? faceAt(NORMAL_FACES.get(r), at) : null;
+    if (!p) return [0, 1, 0];
+    const n = Math.hypot(p[0], 1, p[1]);
+    return [-p[0] / n, 1 / n, -p[1] / n];
+  }
+  const slope = r.slope ?? Math.tan(r.pitch_deg * D2R), sign = r.falls === 'west' ? -1 : 1;
   const n = Math.hypot(slope, 1);
   return [(sign * slope) / n, 1 / n, 0];
 }

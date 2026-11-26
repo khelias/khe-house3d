@@ -11,7 +11,7 @@ import {
   E, SNAPSHOT, LAYERS, THREE, createKit, BUILDERS, seasonOn, seasonWindow, buildLayer, guardLayer,
   syncCamera, toScreen, releaseVelocity, coast, homeBox, homeDir, homeView, pvNow, roofNormal,
   roofTop, OrbitControls, sunPosition, gridBearing, sunDirection, sunGlow, realLight, model,
-  options, makeCtx, buildAll, describeLayer, hexOf, aoWanted
+  options, makeCtx, buildAll, describeLayer, hexOf, aoWanted, loadModel
 } from './engine-harness.mjs';
 
 test('aoWanted: the real style, not switched off, wide enough and the roof fully off', () => {
@@ -44,6 +44,19 @@ test('every layer builds and returns id and group', () => {
       assert.ok(L.group && L.group.isObject3D, `${want} has a group`);
     });
   });
+});
+
+test('the demo house: every layer builds, the interior the real style\'s alone, its panels on the roof\'s south face', () => {
+  const demo = loadModel('fixture-demo.md');
+  const opts = { car: { profile: demo.car.profile, path: demo.car.path }, surroundings: demo.surroundings };
+  const pv = demo.future.items.find(it => it.kind === 'pv');
+  [[{}, LAYERS.filter(id => id !== 'interior')], [{ style: 'real' }, LAYERS]].forEach(([o, want]) => {
+    const { built, byId } = buildAll({ ...opts, ...o }, demo);
+    assert.deepEqual(built.map(b => b.L.id), want, `${o.style || 'simple'}: something for every layer`);
+    assert.equal(byId.future.lift.children.filter(m => m.userData.panel).length, pv.panels);
+  });
+  const n = roofNormal(demo, 'main', pv.pos);
+  assert.ok(n[2] > 0.4 && n[0] === 0, 'the face falls to +z, the south here');
 });
 
 test('car and surroundings build from the options, not the model', () => {

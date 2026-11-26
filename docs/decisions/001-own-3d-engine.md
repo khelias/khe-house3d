@@ -55,7 +55,11 @@ JSON:
    work. Chimneys are blocks of their own from a level's floor to their top:
    a ground floor chimney above the ceiling is cut there like a wall up to a
    roof and its upper part lifts with the roofs, an upper storey's lifts
-   whole, so a chimney is never furniture left standing in the air.
+   whole, so a chimney is never furniture left standing in the air. A future
+   PV item lies on a shed roof or on one face of a hip or gable roof (amended
+   2026-11-26): inside one wing, on one side of its ridge, where that wing is
+   the surface; its panels are laid edge to edge up the face's true slope and
+   its normal for the PV figure is that face's. A flat roof takes none.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
    and the made-up test houses. khe-home-assistant keeps the HA card, and it
@@ -73,7 +77,7 @@ JSON:
    may have a height of its own above floor 0, and is drawn in the frame's
    surface unless the look names a base surface, so a look written before
    the plinth had a surface draws as it did. The casings (opening trims,
-   corner boards, fascias and posts) are likewise in the frame's surface
+   corner boards, fascias, posts and the pergola) are likewise in the frame's surface
    unless the look names a trim surface, which lets light casings sit round
    dark frames. Without one the engine draws a
    light, matt architectural model with plain walls and no trims, so a

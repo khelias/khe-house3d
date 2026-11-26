@@ -45,6 +45,8 @@ import house3d_model
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "house3d"
 FIXTURE = ROOT / "tests/house3d/fixture-model.md"
+# the made-up house the public demo shows, on the test house's device ids
+DEMO = ROOT / "tests/house3d/fixture-demo.md"
 DEVICES_KEY = re.compile(r"""["']?\bdevices["']?\s*:""")
 DEVICES_KEY_LABEL = "a devices key"
 BAKE_FILES = ("bake.json", "bake-ao.png")

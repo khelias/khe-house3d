@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   LAYERS, THREE, createKit, BUILDERS, buildLayer, panelGrid, icicleLeds, spruce, model, options, makeCtx,
-  buildAll, hexOf, partsOf, winterOf, futureItem
+  buildAll, hexOf, partsOf, winterOf, futureItem, roofNormal
 } from './engine-harness.mjs';
 
 test('real style: the car casts only while fully shown', () => {
@@ -452,6 +452,61 @@ for (const style of ['simple', 'real']) {
     assert.ok(meshes > pv.panels + 4, 'every kind drew something');
   });
 }
+
+// the fixture with wingN a gable, ridge along x at z 13, and the pv on its +z face
+function onGable(slope, item) {
+  const m = structuredClone(model);
+  m.roofs.wingN = { kind: 'gable', ridge: 'x', rects: [[30, 3, 38, 23]], eave_y: 4, slope, thick: 0.3 };
+  Object.assign(m.future.items.find(it => it.id === 'pv'), item);
+  const { ctx } = makeCtx({ ...options, style: 'real' }, m);
+  const L = buildLayer(BUILDERS[LAYERS.indexOf('future')], 'future', ctx);
+  L.lift.updateMatrixWorld(true);
+  return { m, ctx, panels: L.lift.children.filter(o => o.userData.panel) };
+}
+
+test('future layer: panels on a gable face lie on it, turned to its slope and edge to edge up it', () => {
+  for (const [slope, item] of [[0.2, { pos: [34.013, 18.013], size: [7, 4], rot: 0, panels: 8 }], [1, { pos: [34.013, 20.013], size: [3.5, 1.7], rot: 0, panels: 4 }], [1, { pos: [34.013, 20.013], size: [1.7, 3.5], rot: 90, panels: 4 }]]) {
+    const { m, ctx, panels } = onGable(slope, item), top = ctx.roof.top('wingN');
+    const [hw, hd] = item.rot ? [item.size[1] / 2, item.size[0] / 2] : [item.size[0] / 2, item.size[1] / 2];
+    assert.equal(panels.length, item.panels, `slope ${slope} rot ${item.rot}`);
+    const n = roofNormal(m, 'wingN', item.pos), up = new THREE.Vector3(), v = new THREE.Vector3();
+    assert.ok(n[2] > 0 && Math.abs(n[0]) < 1e-12, 'the +z face leans to +z');
+    panels.forEach(p => {
+      up.set(0, 1, 0).applyQuaternion(p.quaternion);
+      assert.ok(Math.abs(up.x - n[0]) < 1e-9 && Math.abs(up.y - n[1]) < 1e-9 && Math.abs(up.z - n[2]) < 1e-9, `turned to the face: ${up.toArray()}`);
+      const pa = p.geometry.attributes.position;
+      for (let i = 0; i < pa.count; i++) {
+        v.fromBufferAttribute(pa, i);
+        const under = v.y < 0;
+        v.applyMatrix4(p.matrixWorld);
+        assert.ok(Math.abs(v.x - item.pos[0]) <= hw + 1e-6 && Math.abs(v.z - item.pos[1]) <= hd + 0.03, `inside the rectangle: ${v.x}, ${v.z}`);
+        if (under) assert.ok(Math.abs(v.y - top(v.x, v.z) - 0.05 * n[1]) <= 0.01 * slope + 0.01, `on the face: ${v.y} against ${top(v.x, v.z)}`);
+      }
+    });
+    // up the slope the rows are a panel's short side and the 2 cm gap apart, not stretched by the
+    // pitch; at 45 degrees that is what makes the second row fit
+    const zs = [...new Set(panels.map(p => p.position.z.toFixed(6)))].map(Number).sort((a, b) => a - b);
+    assert.equal(zs.length, 2);
+    const along = (zs[1] - zs[0]) * Math.hypot(1, slope);
+    assert.ok(Math.abs(along - 1.15) < 1e-6, `rows ${along} apart up the slope`);
+  }
+});
+
+test('future layer: an unvalidated pv off a gable\'s faces is left out, not tilted', () => {
+  assert.equal(onGable(0.2, { pos: [44.013, 18.013], size: [3.5, 2.4], rot: 0, panels: 2 }).panels.length, 0);
+});
+
+test('roofNormal: a gable face\'s normal at a plan point, straight up off the roof or without one', () => {
+  const m = structuredClone(model);
+  m.roofs.g = { kind: 'gable', ridge: 'x', rects: [[0, 0, 10, 10]], eave_y: 3, slope: 0.5, thick: 0.2 };
+  m.roofs.h = { kind: 'hip', rects: [[0, 0, 10, 10]], eave_y: 3, slope: 0.5, thick: 0.2 };
+  const south = roofNormal(m, 'g', [5, 2]), north = roofNormal(m, 'g', [5, 8]);
+  assert.ok(Math.abs(Math.hypot(...south) - 1) < 1e-12);
+  assert.ok(south[2] < 0 && north[2] > 0 && south[0] === 0 && Math.abs(north[2] / north[1] - 0.5) < 1e-12);
+  assert.ok(roofNormal(m, 'h', [1, 5])[0] < 0 && roofNormal(m, 'h', [9, 5])[0] > 0, 'a hip\'s side faces');
+  assert.deepEqual(roofNormal(m, 'g', [20, 5]), [0, 1, 0]);
+  assert.deepEqual(roofNormal(m, 'g'), [0, 1, 0]);
+});
 
 test('future layer: a tap gives the item, the raised panels take none, an indoor item only with the roof off', () => {
   const { byId, ctx } = buildAll();

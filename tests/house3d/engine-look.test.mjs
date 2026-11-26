@@ -174,6 +174,16 @@ test('look: a look naming trim draws an opening\'s casing in it and its frame in
   assert.ok(bars.length > 0, 'frames in frame');
 });
 
+test('look: the pergola\'s frame and slats in trim when the look names it, in frame without', () => {
+  const colours = m => {
+    const set = new Set();
+    real(m).byId.pergola.group.traverse(o => { if (o.isMesh) set.add(o.material.color.getHexString()); });
+    return [...set];
+  };
+  assert.deepEqual(colours(model), [new THREE.Color(model.look.surfaces.frame).getHexString()]);
+  assert.deepEqual(colours({ ...model, look: { ...model.look, surfaces: { ...model.look.surfaces, trim: '#b0b2b4' } } }), ['b0b2b4']);
+});
+
 test('look: trims.fascia splits each roof\'s edge band into a fascia under a lip of roof', () => {
   const surfaces = { ...model.look.surfaces, trim: '#b0b2b4' };
   const bands = look => {

@@ -632,10 +632,55 @@ class RoofKinds(unittest.TestCase):
                 problems = hm.validate(L)
                 self.assertTrue(any(problem in p for p in problems), f"{problem!r} not in {problems}")
 
-    def test_pv_on_a_hip_roof_is_refused(self):
+    def _pv_on(self, roof, **item):
         L = layers()
-        L["geometry"]["roofs"]["wingN"] = {"kind": "hip", "rects": [[30, 3, 38, 23]], "eave_y": 4, "slope": 0.2, "thick": 0.3}
-        self.assertIn("future item pv: roof wingN is not a shed roof; PV lies on shed roofs only", hm.validate(L))
+        L["geometry"]["roofs"]["wingN"] = roof
+        _future(L, "pv").update(item)
+        return L, [p for p in hm.validate(L) if p.startswith("future item pv")]
+
+    def test_pv_on_a_gable_face(self):
+        gable = {"kind": "gable", "ridge": "x", "rects": [[30, 3, 38, 23]], "eave_y": 4, "slope": 0.2, "thick": 0.3}
+        # on the +z face, and one corner on the ridge still counts
+        self.assertEqual(self._pv_on(gable, pos=[34.013, 18.013], size=[7, 4], panels=8)[1], [])
+        self.assertEqual(self._pv_on(gable, pos=[34.013, 15.013], size=[7, 4.026], panels=8)[1], [])
+        problems = self._pv_on(gable, pos=[34.013, 13.013], size=[7, 4], panels=8)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"])
+        problems = self._pv_on(gable, pos=[39.013, 18.013], size=[3.5, 4], panels=2)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"], "off the wing")
+
+    def test_pv_on_a_hip_face(self):
+        hip = {"kind": "hip", "rects": [[30, 3, 38, 23]], "eave_y": 4, "slope": 0.2, "thick": 0.3}
+        self.assertEqual(self._pv_on(hip, pos=[34.013, 4.013], size=[1.8, 1.2], panels=1)[1], [], "on the end face")
+        # across a hip's diagonal onto the end face
+        problems = self._pv_on(hip, pos=[34.013, 6.513], size=[7, 2.4], panels=2)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"])
+
+    def test_pv_half_under_a_higher_wing_is_refused(self):
+        roof = {"kind": "gable", "ridge": "x", "rects": [[30, 3, 38, 9], [32, 0, 36, 26]], "eave_y": 4, "slope": 0.2, "thick": 0.3}
+        self.assertEqual(self._pv_on(roof, pos=[31.013, 7.513], size=[1.4, 2.2], panels=1)[1], [])
+        self.assertEqual(self._pv_on(roof, pos=[34.013, 7.513], size=[1.4, 2.2], panels=1)[1], [], "on the higher wing's face")
+        problems = self._pv_on(roof, pos=[32.013, 7.513], size=[1.4, 2.2], panels=1)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"])
+        # the higher wing crosses the middle, every corner on the lower wing
+        problems = self._pv_on(roof, pos=[34.013, 7.513], size=[6, 2], panels=2)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"])
+        hip = {"kind": "hip", "rects": [[20, 4, 40, 14], [28, -6, 32, 24]], "eave_y": 4, "slope": 0.2, "thick": 0.3}
+        problems = self._pv_on(hip, pos=[30.013, 12.513], size=[10, 1.6], panels=2)[1]
+        self.assertEqual(problems, ["future item pv: its rectangle is not on one face of roof wingN"])
+
+    def test_pv_fits_along_the_slope(self):
+        # 1.7 m of plan up a 45 degree face is 2.4 m of roof: two landscape rows, not one
+        steep = {"kind": "gable", "ridge": "x", "rects": [[30, 3, 38, 23]], "eave_y": 4, "slope": 1.0, "thick": 0.3}
+        L, problems = self._pv_on(steep, pos=[34.013, 20.013], size=[3.5, 1.7], panels=4)
+        self.assertEqual(problems, [])
+        self.assertAlmostEqual(hm.pv_size(_future(L, "pv"), steep)[1], 1.7 * math.sqrt(2))
+        turned = self._pv_on(steep, pos=[34.013, 20.013], size=[1.7, 3.5], rot=90, panels=4)[1]
+        self.assertEqual(turned, [])
+        self.assertIn("5 panels do not fit", self._pv_on(steep, pos=[34.013, 20.013], size=[3.5, 1.7], panels=5)[1][0])
+
+    def test_pv_on_a_flat_roof_is_refused(self):
+        flat = {"kind": "flat", "rects": [[30, 3, 38, 23]], "y": 4, "thick": 0.3}
+        self.assertEqual(self._pv_on(flat)[1], ["future item pv: roof wingN is flat; PV lies on a shed, hip or gable roof"])
 
     def test_heights_of_each_kind(self):
         roofs = _geo(twostorey())["roofs"]

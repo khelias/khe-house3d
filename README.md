@@ -10,7 +10,8 @@ The house's own look, its colours, cladding and trims, is part of its model;
 without one the view draws a plain architectural model.
 
 This repo holds the engine, the model format and its validator, the
-standalone viewer build and two made-up test houses. The Home Assistant card
+standalone viewer build, two made-up test houses and the made-up house the
+[khe.ee/ha](https://khe.ee/ha/) demo shows. The Home Assistant card
 that shows our own house with its devices lives in
 [khe-home-assistant](https://github.com/khelias/khe-home-assistant), which
 carries a pinned copy of this engine.

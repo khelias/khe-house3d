@@ -5,8 +5,9 @@ Workspace-wide rules (push, review, docs, estate ADRs) are in [khe-workspace
 
 The 3D house engine: a three.js scene drawn from a parametric house model, the
 model format and its validator, the standalone viewer build with its privacy
-scan, the device and tree placement page, and two made-up test houses. Why the
-engine is its own and how it is built: [ADR-001](docs/decisions/001-own-3d-engine.md).
+scan, the device and tree placement page, two made-up test houses and the
+made-up house the khe.ee/ha demo shows. Why the engine is its own and how it
+is built: [ADR-001](docs/decisions/001-own-3d-engine.md).
 Why it has a repo of its own and how its consumers, khe-home-assistant and
 khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md).
 
@@ -60,9 +61,11 @@ scripts/           house3d_model.py (the model format: its docstring is the
                    house3d-surroundings.py, house3d-vendor.sh,
                    house3d-copy.sh (a consumer's copy), house3d-test.sh,
                    check.sh
-tests/house3d/     made-up test houses (fixture-model.md, the one-storey house
-                   the HA demo shows; fixture-twostorey.md, hip, gable and flat
-                   roofs, an upper storey, a plinth and chimneys), the engine tests
+tests/house3d/     made-up houses: the test houses (fixture-model.md, the
+                   one-storey house with the devices the HA card's tests read;
+                   fixture-twostorey.md, hip, gable and flat roofs, an upper
+                   storey, a plinth and chimneys) and fixture-demo.md, the
+                   gable house the khe.ee/ha demo shows; the engine tests
                    (engine-*.test.mjs by area over engine-harness.mjs), the
                    simple-style snapshot, the geometry and look baselines,
                    model, build, placement and copy tests (Python unittest)
@@ -92,9 +95,11 @@ docs/decisions/    this repo's decisions
    HA card and the khe.ee/ha demo only when that copy is bumped, with the
    card's version, so keep those paths, the harness's exports and the
    script's usage stable or change the repos together. The
-   test house carries the devices layer the demo dashboard is built on: a
-   demo that needs a new test device takes a commit here and a new copy
-   there.
+   demo house (`fixture-demo.md`) is what khe.ee/ha shows, on the test
+   house's device, car and future ids, which the card's tests read: a demo
+   that needs a new device adds it to both houses here and takes a new copy
+   there ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)
+   point 2).
 
 ## CI and automated writers
 
