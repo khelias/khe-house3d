@@ -103,6 +103,34 @@ class CopyTest(unittest.TestCase):
         self.assertNotIn("house3d/card.js", m["files"])
         self.assertEqual((self.dst / "house3d" / "card.js").read_text(), "card\n")
 
+    def test_an_excluded_folder_is_neither_copied_nor_kept(self):
+        for rel in ("house3d/assets/lawn.ktx2", "house3d/assets/sky/day.ktx2"):
+            (self.src / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.src / rel).write_text("texture\n")
+        (self.dst / "house3d" / "assets").mkdir()
+        (self.dst / "house3d" / "assets" / "old.ktx2").write_text("old\n")
+        self.manifest["exclude"] = ["house3d/assets/"]
+        (self.dst / "house3d-engine.json").write_text(json.dumps(self.manifest))
+        m = self.write()
+        self.assertEqual(m["exclude"], ["house3d/assets/"])
+        self.assertFalse([f for f in m["files"] if f.startswith("house3d/assets/")])
+        self.assertFalse((self.dst / "house3d" / "assets" / "old.ktx2").exists())
+        self.assertIn("house3d/scene/b.js", m["files"])
+        self.assertEqual(self.run_copy("--check").returncode, 0)
+        (self.dst / "house3d" / "assets" / "lawn.ktx2").write_text("added by hand\n")
+        self.git("add", "-A")
+        r = self.run_copy("--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("house3d/assets/lawn.ktx2: not in the engine copy", r.stderr)
+
+    def test_the_script_cannot_be_excluded(self):
+        for exclude in (["scripts/house3d-copy.sh"], ["scripts/"]):
+            self.manifest["exclude"] = exclude
+            (self.dst / "house3d-engine.json").write_text(json.dumps(self.manifest))
+            r = self.run_copy(SHA)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("travels in the copy", r.stderr)
+
     def test_a_bump_that_changes_the_script_finishes(self):
         self.write()
         vendored = self.vendored

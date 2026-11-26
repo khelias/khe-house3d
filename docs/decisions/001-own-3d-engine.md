@@ -42,7 +42,11 @@ JSON:
    fails on any private string in its output.
 3. **three.js is vendored**, versioned by directory, with no CDN (the view
    must work with the internet down) and no bundler (the code is served as
-   static ES modules from HA's `/local`).
+   static ES modules from HA's `/local`) (amended 2026-11-26). The Foto
+   style's photographed surfaces and skies travel with the engine too, as
+   CC0 textures in KTX2 with their sources listed beside them, decoded by
+   three.js's own Basis transcoder; a consumer that does not want them
+   leaves them out of its copy.
 4. **The model format holds other houses too** (amended 2026-11-24). Besides
    the shed roofs of this house, a roof can be hip, gable or flat, made of
    wings: plan rectangles with one eave height and one pitch, each running
@@ -72,8 +76,14 @@ JSON:
    and khe-makett each carry a pinned, checked copy of the engine, written
    by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
-6. **A house's look is model data** (amended 2026-11-26). The real style's
-   finishes are the model's `look` in its geometry layer: colours and
+6. **A house's look is model data** (amended 2026-11-26). Each style has a
+   look of its own that gives its materials by role, its sky and its light:
+   the simple wireframe, Päris (`real`) and Foto (`photo`), which is Päris
+   with a photographed lawn, street and sky and leaf cards on the crowns and
+   hedges, and a light tier for weaker devices. A layer asks its look and
+   branches only on whether the style is lit, so a new style is a new look,
+   not a branch in every layer; the studio stage is Päris's in every lit
+   style. The lit styles' finishes are the model's `look` in its geometry layer: colours and
    finishes of the engine's named surfaces, the cladding's pattern (plain,
    or boards at 0, 45 or 90 degrees, with a board width and groove of their
    own), the pitched roofs' profile (`roof.pattern`:

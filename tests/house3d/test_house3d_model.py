@@ -858,6 +858,9 @@ class BuildAndScan(unittest.TestCase):
             self.assertNotIn("devices", model)
             self.assertNotIn("car", model)
             self.assertNotIn("surroundings", model)
+            sources = json.loads((ENGINE / "assets" / "sources.json").read_text(encoding="utf-8"))
+            for name in sources["files"]:
+                self.assertTrue((Path(tmp) / "assets" / name).is_file(), name)
 
     def test_build_copies_a_bake_and_scans_its_json(self):
         with tempfile.TemporaryDirectory() as tmp:

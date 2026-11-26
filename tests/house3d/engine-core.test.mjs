@@ -14,19 +14,19 @@ import {
   options, makeCtx, buildAll, describeLayer, hexOf, aoWanted, loadModel
 } from './engine-harness.mjs';
 
-test('aoWanted: the real style, not switched off, wide enough and the roof fully off', () => {
-  const on = { real: true, ao: undefined, width: 720, roofFade: 0 };
+test('aoWanted: a lit style, not switched off, wide enough and the roof fully off', () => {
+  const on = { lit: true, ao: undefined, width: 720, roofFade: 0 };
   assert.equal(aoWanted(on), true);
   assert.equal(aoWanted({ ...on, ao: true }), true);
   assert.equal(aoWanted({ ...on, roofFade: 0.01 }), true, 'the fade counts as off from 0.01');
-  assert.equal(aoWanted({ ...on, real: false }), false, 'the simple style');
+  assert.equal(aoWanted({ ...on, lit: false }), false, 'the simple style');
   assert.equal(aoWanted({ ...on, ao: false }), false, 'switched off');
   assert.equal(aoWanted({ ...on, width: 719 }), false, 'too narrow');
   assert.equal(aoWanted({ ...on, roofFade: 0.02 }), false, 'the roof is coming on');
 });
 
 test('the vendored contact shadow pass is whole and still has the method the engine wraps', () => {
-  const jsm = new URL('vendor/three-0.186.1/examples/jsm/', E);
+  const jsm = new URL('vendor/three-0.187.0/examples/jsm/', E);
   ['postprocessing/GTAOPass.js', 'postprocessing/Pass.js', 'shaders/GTAOShader.js', 'shaders/PoissonDenoiseShader.js', 'shaders/CopyShader.js', 'math/SimplexNoise.js']
     .forEach(f => assert.ok(existsSync(new URL(f, jsm)), f));
   const src = readFileSync(new URL('postprocessing/GTAOPass.js', jsm), 'utf-8');

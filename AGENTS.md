@@ -30,6 +30,11 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   moving devices, trees and future items and writes the changes back;
   `scripts/house3d-surroundings.py` writes a surroundings layer from ETAK;
   `scripts/house3d-vendor.sh <version>` vendors a three.js release.
+- `house3d/assets/` holds Foto's textures, encoded from the sources in its
+  `sources.json` with `basisu` (Homebrew `basis_universal`): colour maps and
+  the leaf cards ETC1S, normal maps UASTC with `-linear -normal_map`, all
+  with `-mipmap`, the skies `-hdr -y_flip`. A new sky's `sunU` and horizon
+  colour in `scene/photo.js` are measured from its `.hdr` before encoding.
 - `bash scripts/house3d-bake.sh MODEL_JSON OUTDIR [SIZE]` bakes a house's
   contact shadows from a viewer build's `model.json` into `bake.json` and
   `bake-ao.png` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 7). A
@@ -49,9 +54,12 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
 
 ```
 house3d/           the engine: core house3d.js, scene/ (kit, sun, the marker
-                   overlay, bake.js that applies a baked bake.json, and one
-                   module per layer), the standalone viewer.html, the
-                   placement page place.html, vendored three.js
+                   overlay, bake.js that applies a baked bake.json, look.js
+                   with each style's look and photo.js with Foto's, and one
+                   module per layer), assets/ (Foto's CC0 textures as KTX2,
+                   their sources in sources.json), the standalone
+                   viewer.html, the placement page place.html, vendored
+                   three.js with its Basis transcoder
 scripts/           house3d_model.py (the model format: its docstring is the
                    format's reference; read, validate, merge layers),
                    house3d_viewer.py (viewer build and privacy scan),
@@ -89,7 +97,7 @@ docs/decisions/    this repo's decisions
    module scope holds constants only. The engine tests enforce it.
 4. **Each consumer carries a pinned copy.** `scripts/house3d-copy.sh
    <commit>` copies the paths a consumer's `house3d-engine.json` lists under
-   `include`, itself among them, at the same paths, and checks them against
+   `include` but those under its `exclude`, itself among them, at the same paths, and checks them against
    that file's hashes; the consumers are khe-home-assistant and khe-makett,
    and each one's `include` says what it takes. A change here reaches the
    HA card and the khe.ee/ha demo only when that copy is bumped, with the
