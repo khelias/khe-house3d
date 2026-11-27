@@ -48,19 +48,34 @@ JSON:
    CC0 textures in KTX2 with their sources listed beside them, decoded by
    three.js's own Basis transcoder; a consumer that does not want them
    leaves them out of its copy.
-4. **The model format holds other houses too** (amended 2026-11-24). Besides
+4. **The model format holds other houses too** (amended 2026-11-27). Besides
    the shed roofs of this house, a roof can be hip, gable or flat, made of
    wings: plan rectangles with one eave height and one pitch, each running
    into the next, the surface being the highest wing, which gives an L or T
    house its valleys. The viewer clips each wing's faces to where that wing
    is highest, so a fading roof shows no hidden faces; wings that only touch
    are refused, and a non-rectangular outline stays a shed roof. Storeys are
-   walls and rooms on a `level` of a `levels` list of floor heights; an upper
-   storey lifts away with the roof, and inside views per storey are later
-   work. Chimneys are blocks of their own from a level's floor to their top:
-   a ground floor chimney above the ceiling is cut there like a wall up to a
-   roof and its upper part lifts with the roofs, an upper storey's lifts
-   whole, so a chimney is never furniture left standing in the air. A future
+   walls, rooms, chimneys and furniture on a `level` of an ascending `levels`
+   list of floor heights that holds 0: the ground storey is the index of 0, a
+   negative floor is a basement inside the ground storey's rooms' box, and
+   floors between make a split level. Each storey has its own cut, `ceiling`
+   for the ground and an optional `ceilings` entry above its floor for the
+   rest. A wall is split at its storey's cut: below, its top is the lower of
+   its roof and the cut; above, it stands only where the roof is higher, so
+   an attic's knee walls stand whole and its gable walls are cut. Each
+   layer's lift is a stack of bands, one per storey: band i holds what is
+   above storey i's cut up to storey i+1's contents, the last the top
+   storey's upper part and the roofs, and showing storey k lifts the bands
+   from k up; a house of one storey has its one lift as before. A piece of
+   furniture's storey is its `level`, else that of the room under its
+   centre with the highest floor at or below its foot. Stairs are furniture,
+   `stair` (a flight climbing to its `up` edge) and `landing`, and the
+   storey above leaves the stairwell out of its rooms. A room may carry a
+   neutral `type` and `furnish: false`, and `showcase.level_names` names a
+   storey in the picker. The ground surfaces leave the basement's pit open.
+   Chimneys are blocks of their own from a level's floor to their top, cut
+   into a piece per band they rise through, so a chimney is never furniture
+   left standing in the air. A future
    PV item lies on a shed roof or on one face of a hip or gable roof (amended
    2026-11-26): inside one wing, on one side of its ridge, where that wing is
    the surface; its panels are laid edge to edge up the face's true slope and

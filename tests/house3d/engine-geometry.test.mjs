@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { THREE, buildAll, options, checkBaseline } from './engine-harness.mjs';
+import { THREE, buildAll, options, checkBaseline, rootsOf } from './engine-harness.mjs';
 
 const BASELINE = new URL('./geometry-baseline.json', import.meta.url);
 const LAYERS = ['building', 'interior', 'winter', 'future'];
@@ -16,7 +16,7 @@ const LAYERS = ['building', 'interior', 'winter', 'future'];
 function geometryOf(L) {
   const out = [], v = new THREE.Vector3();
   const mm = x => { const r = Math.round(x * 1000); return r === 0 ? 0 : r; };
-  [L.group, L.lift].filter(Boolean).forEach(root => {
+  rootsOf(L).forEach(root => {
     root.updateMatrixWorld(true);
     root.traverse(o => {
       const pos = o.geometry && o.geometry.attributes && o.geometry.attributes.position;

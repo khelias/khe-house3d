@@ -555,8 +555,8 @@ MUTATIONS = [
     ("unknown finish", _unknown_finish, "furniture[0]: finish 'oak' is not one of kitchen, anthracite, white"),
     ("finish on a bed", _finish_on_bed, "furniture[0]: finish is only for base_units"),
     ("stove on a circle", _stove_circle, "furniture[0]: a stove needs a rect"),
-    ("mirror on the floor", _mirror_on_floor, "furniture[0]: a mirror hangs on the wall, its y0 above 0"),
-    ("picture on the floor", _picture_on_floor, "furniture[0]: a picture hangs on the wall, its y0 above 0"),
+    ("mirror on the floor", _mirror_on_floor, "furniture[0]: a mirror hangs on the wall, its y0 above its floor 0"),
+    ("picture on the floor", _picture_on_floor, "furniture[0]: a picture hangs on the wall, its y0 above its floor 0"),
     ("bloom on a table", _bloom_on_table, "furniture[0]: bloom is true or false on a plant"),
     ("art past the palettes", _art_too_high, "furniture[0]: art is 0 to 3 on a picture"),
     ("open without a hinge", _open_without_hinge, "walls[0].openings[2]: an open door has hinge a or b"),
@@ -596,7 +596,24 @@ TWO_MUTATIONS = [
     ("a flat roof without y", lambda L: _geo(L)["roofs"]["porch"].pop("y"), "roof porch: a flat roof needs y"),
     ("a hip roof with an outline", lambda L: _geo(L)["roofs"]["main"].update(outline=[[0, 0], [1, 0], [1, 1]]), "roof main: a hip roof has rects, not an outline"),
     ("levels not ascending", lambda L: _geo(L).update(levels=[0, 3, 2]), "geometry: levels [0, 3, 2] must be ascending"),
-    ("levels not from 0", lambda L: _geo(L).update(levels=[0.5, 3]), "must be ascending floor heights from 0"),
+    ("levels not from 0", lambda L: _geo(L).update(levels=[0.5, 3]), "must be ascending floor heights holding 0"),
+    ("levels without 0", lambda L: _geo(L).update(levels=[-2.5, 3]), "must be ascending floor heights holding 0"),
+    ("levels with a word, furniture standing", lambda L: _geo(L).update(levels=[0, "up"]), "must be ascending floor heights holding 0"),
+    ("ceilings not a list", lambda L: _geo(L).update(ceilings=3), "ceilings must be one number per level"),
+    ("ceilings not one per level", lambda L: _geo(L).update(ceilings=[2.6]), "geometry: ceilings must be one number per level (2)"),
+    ("a ceiling too low", lambda L: _geo(L).update(ceilings=[2.6, 1.5]), "geometry: ceilings[1] 1.5 is not more than 1.8"),
+    ("the ground ceiling not ceiling", lambda L: _geo(L).update(ceilings=[2.4, 2.5]), "geometry: ceilings[0] is not ceiling 2.6"),
+    ("a cut into the storey above", lambda L: (_geo(L).update(ceiling=2.95, ceilings=[2.95, 2.5])), "geometry: level 0's cut 2.95 is not 0.1 under level 1's floor 3 over it"),
+    ("a room type that does not exist", lambda L: L["rooms"]["rooms"][3].update(type="ballroom"), "room bed: type 'ballroom' is not one of"),
+    ("furnish not a boolean", lambda L: L["rooms"]["rooms"][3].update(furnish="no"), "room bed: furnish is true or false"),
+    ("a stair without up", lambda L: _geo(L)["furniture"].append({"kind": "stair", "rect": [1, 1, 2, 4], "y": [0, 3]}), "a stair's up None is not one of"),
+    ("up on a table", lambda L: _geo(L)["furniture"].append({"kind": "table", "rect": [1, 1, 2, 2], "y": [0, 0.75], "up": "x0"}), "up is only for stair"),
+    ("a landing without a rect", lambda L: _geo(L)["furniture"].append({"kind": "landing", "circle": [1, 1, 0.5], "y": [1.2, 1.4]}), "a landing needs a rect"),
+    ("furniture below the lowest floor", lambda L: _geo(L)["furniture"].append({"rect": [1, 1, 2, 2], "y": [-0.5, 0.5]}), "y0 -0.5 is below the lowest floor 0"),
+    ("furniture on a level that does not exist", lambda L: _geo(L)["furniture"].append({"rect": [1, 1, 2, 2], "y": [0, 0.5], "level": 4}), "level 4 is not an index into levels"),
+    ("level_names not a level", lambda L: L["showcase"]["showcase"].update(level_names={"5": "Katusealune"}), "showcase.level_names: '5' is not a level index"),
+    ("a level name too long", lambda L: L["showcase"]["showcase"].update(level_names={"1": "x" * 30}), "showcase.level_names[1]: a name of 1 to 24 characters"),
+    ("a basement outside the house", lambda L: (_geo(L).update(levels=[-2.6, 0, 3]), [w.update(level=w.get("level", 0) + 1) for w in _geo(L)["walls"]], [c.update(level=c.get("level", 0) + 1) for c in _geo(L)["chimneys"]], [r.update(level=r.get("level", 0) + 1) for r in L["rooms"]["rooms"]], L["rooms"]["rooms"].append({"id": "pit", "name": "Kelder", "level": 0, "rects": [[30, 30, 33, 33]]})), "room pit: a room below ground must lie inside the ground storey's rooms' box"),
     ("a wall on a level that does not exist", lambda L: _geo(L)["walls"][9].update(level=2), "walls[9]: level 2 is not an index into levels"),
     ("a room on a level that does not exist", lambda L: L["rooms"]["rooms"][3].update(level=-1), "room bed: level -1 is not an index"),
     ("an upper wall's top under its floor", lambda L: _geo(L)["walls"][15].update(top=2.8), "walls[15]: top 2.8 is not above its level's floor 3"),
@@ -726,6 +743,50 @@ class RoofKinds(unittest.TestCase):
         # a shed roof's height is its plane, the same at every z
         self.assertAlmostEqual(hm.roof_height(wing_n, 37.3, 5), 5)
         self.assertAlmostEqual(hm.roof_height(wing_n, 31, 20), 5 - 6.3 * math.tan(math.radians(7)))
+
+
+class Storeys(unittest.TestCase):
+    def test_floor_and_cut_per_storey(self):
+        m = {"levels": [-2.6, 0, 2.9], "ceiling": 2.6, "ceilings": [2.3, 2.6, 2.4]}
+        ground, st = hm.storeys(m)
+        self.assertEqual(ground, 1)
+        self.assertEqual([round(s["cut"], 6) for s in st], [-0.3, 2.6, 5.3])
+        self.assertEqual(hm.storeys({"ceiling": 2.7}), (0, [{"floor": 0, "cut": 2.7}]))
+        # without ceilings a storey takes ceiling above its own floor
+        self.assertAlmostEqual(hm.storeys({"levels": [0, 3], "ceiling": 2.6})[1][1]["cut"], 5.6)
+
+    def test_an_items_storey(self):
+        m = {
+            "levels": [0, 1.4, 2.8],
+            "ceiling": 2.6,
+            "rooms": [
+                {"id": "low", "rects": [[0, 0, 4, 4]]},
+                {"id": "half", "level": 1, "rects": [[4, 0, 8, 4]]},
+                {"id": "up", "level": 2, "rects": [[0, 0, 4, 4]]},
+            ],
+        }
+        # a mirror at 1.5 over the low room stays on storey 0, not on the half level at 1.4
+        self.assertEqual(hm.item_level(m, {"rect": [1, 0, 2, 0.05], "y": [1.5, 2.2]}), 0)
+        self.assertEqual(hm.item_level(m, {"rect": [5, 1, 6, 2], "y": [1.4, 2]}), 1)
+        self.assertEqual(hm.item_level(m, {"rect": [1, 1, 2, 2], "y": [2.8, 3.4]}), 2)
+        self.assertEqual(hm.item_level(m, {"rect": [1, 1, 2, 2], "y": [0, 1], "level": 1}), 1)
+        # outside every room: the highest storey whose floor is at or below y0
+        self.assertEqual(hm.item_level(m, {"rect": [20, 20, 21, 21], "y": [1.5, 2]}), 1)
+
+    def test_a_split_level_and_a_basement_mirror_are_valid(self):
+        L = twostorey()
+        _geo(L).update(levels=[0, 1.4, 3])
+        for w in _geo(L)["walls"]:
+            if w.get("level"):
+                w["level"] = 2
+        for c in _geo(L)["chimneys"]:
+            if c.get("level"):
+                c["level"] = 2
+        for r in L["rooms"]["rooms"]:
+            if r.get("level"):
+                r["level"] = 2
+        _geo(L)["furniture"].append({"kind": "mirror", "rect": [1, 0.3, 2, 0.35], "y": [1.5, 2.2]})
+        self.assertEqual(hm.validate(L), [])
 
 
 class Festive(unittest.TestCase):

@@ -57,7 +57,7 @@ export function bakeExport(model) {
     format: BAKE_FORMAT,
     targets: targets.map(({ key, mesh }) => ({ key, count: bakeCount(mesh.geometry), v: triangles(mesh) })),
     occluders,
-    ground: { y: (model.levels || [0])[0] || 0, rect: [x0 - GROUND_MARGIN, z0 - GROUND_MARGIN, x1 + GROUND_MARGIN, z1 + GROUND_MARGIN] }
+    ground: { y: 0, rect: [x0 - GROUND_MARGIN, z0 - GROUND_MARGIN, x1 + GROUND_MARGIN, z1 + GROUND_MARGIN] }
   };
   return { ...data, hash: createHash('sha256').update(JSON.stringify(data)).digest('hex') };
 }

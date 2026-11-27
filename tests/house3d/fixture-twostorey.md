@@ -5,7 +5,8 @@ describes a real place. An L of two storeys under a hip roof of two wings, the l
 the street (+x) and the short one running back from its west end; a one-storey porch on the long
 wing's east end under a flat roof, so the upper storey stands back from it; and a garage against
 the porch's east wall under a gable roof with its ridge running back from the street (z), its
-door in the street gable. The upper storey has two rooms with a wall between them. Its look has
+door in the street gable. The upper storey has two rooms with a wall between them, a bed and a desk, and a straight stair climbs to
+it from the living room, its stairwell left out of the bedroom. Its look has
 a plinth of its own colour, 0.4 high, and it has four chimneys: one from the living room through
 the ridge, one outside the west wall, a stove flue that stops under the ceiling, and one from the
 upper storey.
@@ -79,7 +80,10 @@ upper storey.
  ],
  "furniture": [
   { "rect": [1, 1, 3.2, 2], "y": [0, 0.8], "kind": "sofa", "back": ["z0"] },
-  { "rect": [8, 3, 10, 4], "y": [0, 0.75], "kind": "table" }
+  { "rect": [8, 3, 10, 4], "y": [0, 0.75], "kind": "table" },
+  { "rect": [7.4, 6.8, 11.6, 7.8], "y": [0, 3], "kind": "stair", "up": "x0" },
+  { "rect": [2, 1, 3.6, 3], "y": [3, 3.5], "kind": "bed" },
+  { "rect": [3, 12.6, 4.4, 13.3], "y": [3, 3.75], "kind": "desk" }
  ],
  "site": {
   "lot": [[-8, -8], [30, -8], [30, 24], [-8, 24]],
@@ -94,7 +98,7 @@ upper storey.
   { "id": "living", "name": "Elutuba", "rects": [[0, 0, 12, 8], [0, 8, 6, 14]] },
   { "id": "porch", "name": "Tuulekoda", "rects": [[12, 0, 15, 8]], "floor": "tile" },
   { "id": "garage", "name": "Garaaž", "rects": [[15, 1, 21, 8]], "floor": "tile" },
-  { "id": "bed", "name": "Magamistuba", "rects": [[0, 0, 12, 8]], "level": 1 },
+  { "id": "bed", "name": "Magamistuba", "rects": [[0, 0, 12, 6.8], [0, 6.8, 7.4, 8]], "level": 1 },
   { "id": "kids", "name": "Lastetuba", "rects": [[0, 8, 6, 14]], "level": 1 }
  ]
 }

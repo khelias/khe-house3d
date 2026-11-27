@@ -1,6 +1,6 @@
 // Engine tests on the two-storey fixture (tests/house3d/fixture-twostorey.md): the wing roofs'
-// heights and faces, the walls under them, the upper storey in the lift, the chimneys and the
-// plinth. The set-up is in
+// heights and faces, the walls under them, the upper storey in lift band 0 and the roofs in band 1,
+// the chimneys and the plinth. The set-up is in
 // engine-harness.mjs; scripts/house3d-test.sh runs every engine-*.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -82,20 +82,20 @@ test('roofFaces: every point of the wings lies in one face, on its plane at the 
 test('a gable end wall reaches the ridge, a wall under a hipped end follows its slope', () => {
   const gap = modelFrame(two).roof.gap;
   const { layers } = buildTwo('simple');
-  const lift = layers.building.lift;
-  lift.updateMatrixWorld(true);
-  // the highest point of the lift's walls over a plan point, from their vertices
+  const lifts = layers.building.lifts;
+  lifts.forEach(l => l.updateMatrixWorld(true));
+  // the highest point of the lift bands' walls over a plan point, from their vertices
   const topAt = (x, z) => {
     let best = -Infinity;
     const v = new THREE.Vector3();
-    lift.traverse(o => {
+    lifts.forEach(lift => lift.traverse(o => {
       if (!o.isMesh || !o.geometry.attributes.position) return;
       const p = o.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
         v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
         if (Math.abs(v.x - x) < 0.01 && Math.abs(v.z - z) < 0.25) best = Math.max(best, v.y);
       }
-    });
+    }));
     return best;
   };
   near(crossings([15, 1], [21, 1], [[[18, 0.6], [18, 8.4]]])[0], 3, 'the ridge crosses the gable wall at its middle');
@@ -104,31 +104,39 @@ test('a gable end wall reaches the ridge, a wall under a hipped end follows its 
   assert.ok(Math.abs(topAt(12.2, 4) - (5.4 + 0.5 * S22 - gap)) < 1e-3, `hipped end ${topAt(12.2, 4)}`);
 });
 
-test('an upper storey wall stands in the lift on its level, its panes on a glass of their own', () => {
+test('the upper storey stands in lift band 0 on its level, the roofs in band 1, its panes on glass of their own', () => {
   for (const style of ['simple', 'real']) {
     const { layers } = buildTwo(style);
     const b = layers.building;
-    const lift = b.lift, group = b.group;
-    group.updateMatrixWorld(true);
-    lift.updateMatrixWorld(true);
+    const group = b.group, [band0, band1] = b.lifts;
+    assert.equal(b.lifts.length, 2, `${style}: a band per storey`);
+    assert.equal(band1, b.lift, `${style}: the top band is the lift`);
+    [group, band0, band1].forEach(g => g.updateMatrixWorld(true));
     // the upper storey's wall groups sit at y = levels[1]
     const at3 = [];
-    lift.traverse(o => { if (o.isGroup && Math.abs(o.position.y - 3) < 1e-9) at3.push(o); });
-    assert.ok(at3.length >= 7, `${style}: ${at3.length} upper storey walls in the lift`);
-    // nothing in the group stands above the ceiling
+    band0.traverse(o => { if (o.isGroup && Math.abs(o.position.y - 3) < 1e-9) at3.push(o); });
+    assert.ok(at3.length >= 7, `${style}: ${at3.length} upper storey walls in band 0`);
+    // nothing in the group stands above the ceiling, the stair excepted, which climbs to the floor above
     let top = -Infinity;
     const box = new THREE.Box3();
-    group.traverse(o => { if (o.isMesh && !o.userData.room) { box.setFromObject(o); top = Math.max(top, box.max.y); } });
+    group.traverse(o => { if (o.isMesh && !o.userData.room) { box.setFromObject(o); if (box.min.x < 7.3 || box.min.z < 6.7) top = Math.max(top, box.max.y); } });
     assert.ok(top <= two.ceiling + 1e-6, `${style}: the ground floor's top ${top}`);
-    // the floors are the ground floor's rooms only
-    const floors = new Set();
-    group.traverse(o => { if (o.userData.room) floors.add(o.userData.room); });
-    assert.deepEqual([...floors].sort(), ['garage', 'living', 'porch']);
+    // nothing in band 0 stands above the upper storey's cut, 3 + 2.6
+    top = -Infinity;
+    band0.traverse(o => { if (o.isMesh && !o.userData.room) { box.setFromObject(o); top = Math.max(top, box.max.y); } });
+    assert.ok(top <= 5.6 + 1e-6, `${style}: the upper storey's top ${top}`);
+    // each storey's floors are with its contents, at its floor
+    const floors = g => { const out = {}; g.traverse(o => { if (o.userData.room) out[o.userData.room] = Number(o.position.y.toFixed(3)); }); return out; };
+    assert.deepEqual(Object.keys(floors(group)).sort(), ['garage', 'living', 'porch']);
+    assert.deepEqual(floors(band0), { bed: 3.02, kids: 3.02 });
+    assert.deepEqual(floors(band1), {});
     if (style !== 'real') continue;
     const glassIn = g => { const s = new Set(); g.traverse(o => { if (o.userData.pane !== undefined) s.add(o.material); }); return s; };
-    const shared = [...glassIn(lift)].filter(m => glassIn(group).has(m));
-    assert.equal(shared.length, 0, 'the lift shares no glass with the ground floor');
-    assert.ok(glassIn(lift).size >= 1, 'the upper storey has panes');
+    const shared = [...glassIn(band0)].filter(m => glassIn(group).has(m));
+    assert.equal(shared.length, 0, 'band 0 shares no glass with the ground floor');
+    const rooms = new Set();
+    band0.traverse(o => { if (o.userData.pane) rooms.add(o.userData.pane); });
+    assert.deepEqual([...rooms].sort(), ['bed', 'kids'], 'the upper storey\'s panes know their rooms, so they glow');
   }
 });
 
@@ -156,7 +164,7 @@ test('the winter layer lays one snow slab on every wing roof, over its faces', (
 // each chimney's meshes as { id: [[parent, y0, y1, mesh], ...] }, from their world boxes
 function chimneyParts(L) {
   const out = {}, box = new THREE.Box3();
-  [['group', L.group], ['lift', L.lift]].forEach(([name, root]) => {
+  [['group', L.group], ...L.lifts.map((l, i) => [`band${i}`, l])].forEach(([name, root]) => {
     root.updateMatrixWorld(true);
     root.traverse(o => {
       if (o.userData.part !== 'chimney') return;
@@ -168,15 +176,15 @@ function chimneyParts(L) {
   return out;
 }
 
-test('a chimney is cut at the ceiling, the part above in the lift; one under the ceiling stays, an upper storey\'s lifts whole', () => {
+test('a chimney is cut at its storey\'s cut and at each one above; one under the cut stays whole', () => {
   for (const style of ['simple', 'real']) {
     const parts = chimneyParts(buildTwo(style).layers.building);
     const spans = Object.fromEntries(Object.entries(parts).map(([id, ps]) => [id, ps.map(([p, a, b]) => [p, a, b])]));
     assert.deepEqual(spans, {
-      hearth: [['group', 0, 2.6], ['lift', 2.6, 8]],
-      outside: [['group', 0, 2.6], ['lift', 2.6, 6]],
+      hearth: [['group', 0, 2.6], ['band0', 2.6, 5.6], ['band1', 5.6, 8]],
+      outside: [['group', 0, 2.6], ['band0', 2.6, 5.6], ['band1', 5.6, 6]],
       stove: [['group', 0, 2.2]],
-      upper: [['lift', 3, 7]]
+      upper: [['band0', 3, 5.6], ['band1', 5.6, 7]]
     }, style);
     // outside the west wall, where it was put
     const b = new THREE.Box3().setFromObject(parts.outside[0][3]);
@@ -185,28 +193,25 @@ test('a chimney is cut at the ceiling, the part above in the lift; one under the
   }
 });
 
-test('a chimney\'s lift part fades and rises with the roof, the lower part stays', () => {
+test('a chimney\'s piece in a band fades and rises with that band alone, the lower part stays', () => {
   for (const style of ['simple', 'real']) {
     const { ctx, built } = buildAll({ style }, two);
     const L = built.find(b => b.want === 'building').L, parts = chimneyParts(L);
-    const [lower, upper] = parts.hearth.map(p => p[3]);
-    assert.notEqual(lower.material, upper.material, `${style}: a material of its own`);
-    const before = lower.material.opacity, full = upper.material.opacity;
-    ctx.kit.applyFade(L.lift, 0.5);
-    assert.equal(upper.material.opacity, full * 0.5, `${style}: the lift part fades`);
+    const [lower, middle, upper] = parts.hearth.map(p => p[3]);
+    assert.equal(new Set([lower.material, middle.material, upper.material]).size, 3, `${style}: a material of its own each`);
+    const before = lower.material.opacity, full = middle.material.opacity, top = upper.material.opacity;
+    ctx.kit.applyFade(L.lifts[0], 0.5);
+    assert.equal(middle.material.opacity, full * 0.5, `${style}: band 0's piece fades`);
     assert.equal(lower.material.opacity, before, `${style}: the lower part does not`);
-    // the core moves the lift as a whole: the upper part is under it, the lower one is not
-    let o = upper;
-    while (o && o !== L.lift) o = o.parent;
-    assert.equal(o, L.lift);
-    o = lower;
-    while (o && o !== L.lift) o = o.parent;
-    assert.equal(o, null);
+    assert.equal(upper.material.opacity, top, `${style}: nor band 1's piece`);
+    // the core moves each band as a whole: the middle piece is under band 0, the lower one is not
+    const under = (o, root) => { while (o && o !== root) o = o.parent; return o === root; };
+    assert.ok(under(middle, L.lifts[0]) && under(upper, L.lifts[1]) && !under(lower, L.lifts[0]) && !under(lower, L.lifts[1]));
     if (style === 'real') assert.equal(lower.material.color.getHexString(), hexOf(ctx.kit, 'chimney'), 'the chimney surface');
   }
 });
 
-test('the interior caps a chimney cut at the ceiling, not one under it or upstairs', () => {
+test('the interior caps a chimney cut at the ceiling with the ground floor, not one under it; the upper storey\'s caps are its own', () => {
   const { layers } = buildTwo('real');
   const caps = [];
   layers.interior.group.traverse(o => { if (o.userData.part === 'cap') caps.push(o); });

@@ -14,12 +14,13 @@ Assistant demo at [khe.ee/ha](https://khe.ee/ha/), on a made-up house.
 
 The view has three styles: a neon wireframe, a lit one with the sun where it
 stands at that hour, and a photographic one with a textured lawn and sky and
-leafy trees. The roofs lift off to show the rooms. The house's own look, its
+leafy trees. The roofs lift off to show the rooms, and a house of more storeys,
+an attic or a basement shows each storey from inside. The house's own look, its
 colours, cladding and trims, is part of its model; without one the view
 draws a plain architectural model.
 
 This repo holds the engine, the model format and its validator, the
-standalone viewer build, two made-up test houses and the made-up house the
+standalone viewer build, three made-up test houses and the made-up house the
 [khe.ee/ha](https://khe.ee/ha/) demo shows. The Home Assistant card
 that shows our own house with its devices lives in
 [khe-home-assistant](https://github.com/khelias/khe-home-assistant), which

@@ -5,7 +5,7 @@ Workspace-wide rules (push, review, docs, estate ADRs) are in [khe-workspace
 
 The 3D house engine: a three.js scene drawn from a parametric house model, the
 model format and its validator, the standalone viewer build with its privacy
-scan, the device and tree placement page, two made-up test houses and the
+scan, the device and tree placement page, three made-up test houses and the
 made-up house the khe.ee/ha demo shows. Why the engine is its own and how it
 is built: [ADR-001](docs/decisions/001-own-3d-engine.md).
 Why it has a repo of its own and how its consumers, khe-home-assistant and
@@ -76,7 +76,9 @@ scripts/           house3d_model.py (the model format: its docstring is the
 tests/house3d/     made-up houses: the test houses (fixture-model.md, the
                    one-storey house with the devices the HA card's tests read;
                    fixture-twostorey.md, hip, gable and flat roofs, an upper
-                   storey, a plinth and chimneys) and fixture-demo.md, the
+                   storey with a stair, a plinth and chimneys;
+                   fixture-storeys.md, a basement, a ground storey and an
+                   attic with stairs) and fixture-demo.md, the
                    gable house the khe.ee/ha demo shows; the engine tests
                    (engine-*.test.mjs by area over engine-harness.mjs), the
                    simple-style snapshot, the geometry and look baselines,

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { THREE, createKit, buildAll, options, model, hexOf, partsOf, checkBaseline } from './engine-harness.mjs';
+import { THREE, createKit, buildAll, options, model, hexOf, partsOf, checkBaseline, rootsOf } from './engine-harness.mjs';
 
 const BASELINE = new URL('./look-baseline.json', import.meta.url);
 
@@ -32,7 +32,7 @@ function materialOf(mt) {
 // each mesh of a layer, in traversal order (group, then lift), as "type part: material | ..."
 function looksOf(L) {
   const out = [];
-  [L.group, L.lift].filter(Boolean).forEach(root => root.traverse(o => {
+  rootsOf(L).forEach(root => root.traverse(o => {
     if (!o.material) return;
     const ms = Array.isArray(o.material) ? o.material : [o.material];
     out.push(`${o.type} ${o.userData.part || ''}: ${ms.map(materialOf).join(' | ')}`);
