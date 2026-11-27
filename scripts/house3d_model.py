@@ -68,9 +68,9 @@ The simple style ignores it.
 
 Chimneys: geometry.chimneys (optional) is a list of {"id", "rect": [x0, z0, x1, z1], "top": y,
 "level": 0}, upright blocks from levels[level] to top, which runs at least 0.5 above that floor.
-A ground floor chimney above the ceiling is cut there like a wall up to a roof, the part above
-rising and fading with the roofs; an upper storey's rises whole. The real style draws them in the
-chimney surface.
+A chimney above its storey's cut is cut there like a wall up to a roof and again at each cut it
+rises through, each part above rising and fading with the band over that cut. The real style
+draws them in the chimney surface.
 
 Posts and the carport roof: site.posts (optional) is a list of {"at": [x, z], "top": y,
 "size": 0.15, "braces": [[dx, dz], ...]}, square posts from the ground to top, each brace a

@@ -788,6 +788,13 @@ class Storeys(unittest.TestCase):
         _geo(L)["furniture"].append({"kind": "mirror", "rect": [1, 0.3, 2, 0.35], "y": [1.5, 2.2]})
         self.assertEqual(hm.validate(L), [])
 
+    def test_the_basement_and_attic_house_is_valid(self):
+        L = hm.read_layers(ROOT / "tests/house3d/fixture-storeys.md")
+        self.assertEqual(hm.validate(L), [])
+        # its mirror at -1.2 hangs on the basement's floor, not the ground's
+        mirror = next(f for f in _geo(L)["furniture"] if f["kind"] == "mirror")
+        self.assertEqual(hm.item_level({**_geo(L), "rooms": L["rooms"]["rooms"]}, mirror), 0)
+
 
 class Festive(unittest.TestCase):
     def test_every_key_is_optional(self):
