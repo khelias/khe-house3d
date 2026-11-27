@@ -148,8 +148,8 @@ function mountView(keep = {}) {
     view = mount(stage, model, {
       style: style === 'studio' ? 'real' : style, stage: style === 'studio' ? 'studio' : 'garden', bake,
       mode: keep.mode, level: keep.level, view: keep.view,
-      // the winter layer by the season, with its snow falling
-      layers: { winter: seasonOn(new Date()) }, snowfall: true,
+      // the winter layer by the season of the day shown, with its snow falling
+      layers: { winter: seasonOn(time || new Date()) }, snowfall: true,
       onMarker: id => select(sel === id ? null : id),
       onRoom: id => select(id),
       onMode: (m, level) => {
@@ -226,12 +226,13 @@ function syncClock() {
 function setTime(t) {
   time = t;
   view?.setTime(t);
+  view?.setLayer('winter', seasonOn(t || new Date()));
   syncClock();
 }
 [hour, day].forEach(el => el.addEventListener('input', () => setTime(new Date(year, 0, 1 + Number(day.value), 0, Number(hour.value) * 15))));
 now.addEventListener('click', () => setTime(null));
-// live, the label and the sliders follow the sun's minute
-setInterval(() => { if (!time) syncClock(); }, 60000);
+// live, the label, the sliders and the season follow the minute; the engine moves the sun itself
+setInterval(() => { if (!time) { view?.setLayer('winter', seasonOn(new Date())); syncClock(); } }, 60000);
 syncClock();
 
 function select(id) {
