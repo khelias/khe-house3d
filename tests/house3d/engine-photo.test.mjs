@@ -1,9 +1,12 @@
 // The Foto style (scene/photo.js) on the synthetic fixture: every layer builds, its leaf cards,
 // the bare winter crowns with their branches and twigs, the winter hedges, sky and light, the
-// meadow past the lot, the pavers, the light tier and what start() applies once its textures are in.
+// meadow past the lot, the pavers, the light tier, what start() applies once its textures are in, and
+// the house's detail photographs over Päris's surfaces.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { THREE, LAYERS, options, buildAll, partsOf, autoQuality } from './engine-harness.mjs';
+import { THREE, LAYERS, E, options, buildAll, partsOf, autoQuality, rootsOf, loadModel } from './engine-harness.mjs';
+
+const { DETAILS } = await import(new URL('scene/photo.js', E));
 
 const photo = (o = {}) => buildAll({ ...options, style: 'photo', ...o });
 const cardsOf = L => partsOf(L, 'cards');
@@ -112,7 +115,7 @@ test('Foto: start() puts the photographs on the lawn and the street and shows th
   const { byId, ctx } = photo();
   let done = 0;
   await ctx.look.start({ load, done: () => done++ });
-  assert.equal(done, 1);
+  assert.equal(done, 2, 'the ground, sky and cards, then the house');
   assert.ok([...cardsOf(byId.trees), ...cardsOf(byId.site)].every(m => m.visible && m.material.map));
   const [outside, lawn] = ['PlaneGeometry', 'ShapeGeometry'].map(t => byId.ground.group.children.find(o => o.geometry.type === t).material);
   assert.equal(lawn.map, lawn.userData.photo.map);
@@ -188,4 +191,123 @@ test('autoQuality: the light tier on few cores or little memory', () => {
   assert.equal(autoQuality({ hardwareConcurrency: 4 }), 'low');
   assert.equal(autoQuality({ deviceMemory: 2 }), 'low');
   assert.equal(autoQuality({}), 'high');
+});
+
+// every material under the built layers, as the core's scene holds them
+const sceneOf = built => {
+  const scene = new THREE.Scene();
+  built.forEach(({ L }) => rootsOf(L).forEach(r => scene.add(r)));
+  return scene;
+};
+// the materials of a role under a root
+const roleMaterials = (root, role) => {
+  const out = new Set();
+  root.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { if (m.userData.role === role) out.add(m); }); });
+  return [...out];
+};
+// a material's shader once Foto has patched it, from three's chunks as placeholders
+const compiled = m => {
+  const sh = { uniforms: {}, vertexShader: '#include <project_vertex>', fragmentShader: '#include <map_fragment>\n#include <normal_fragment_maps>' };
+  m.onBeforeCompile(sh, null);
+  return sh;
+};
+
+test('Foto: start() dresses the house\'s cladding, roof, chimney, deck and timber with a detail photograph over Päris\'s own map', async () => {
+  const two = loadModel('fixture-twostorey.md');
+  const { built, ctx } = buildAll({ ...options, style: 'photo' }, two);
+  const scene = sceneOf(built), real = buildAll({ ...options, style: 'real' }, two);
+  const before = new Map(['cladding', 'roof', 'base', 'chimney'].flatMap(r => roleMaterials(scene, r)).map(m => [m, [m.map, m.color.clone()]]));
+  const asked = [];
+  await ctx.look.start({ load: f => (asked.push(f), load()), done() {}, scene });
+  const want = { cladding: 'cladding-plain', base: 'base', chimney: 'chimney' };
+  Object.entries(want).forEach(([role, key]) => {
+    const ms = roleMaterials(scene, role);
+    assert.ok(ms.length > 0, role);
+    ms.forEach(m => assert.equal(m.userData.detail && m.userData.detail.key, key, role));
+  });
+  // the seam pattern on the pitched roofs, plain on the flat one
+  const roofs = roleMaterials(scene, 'roof').map(m => m.userData.detail.key);
+  assert.ok(roofs.includes('roof-seam') && roofs.includes('roof-plain'), roofs.join());
+  before.forEach(([map, colour], m) => {
+    assert.equal(m.map, map, 'Päris\'s map stays');
+    assert.ok(m.color.equals(colour), 'and the model\'s colour');
+  });
+  // a pitched roof keeps its seams and multiplies the metal over them, normals in the high tier
+  const seam = roleMaterials(scene, 'roof').find(m => m.userData.detail.key === 'roof-seam');
+  const sh = compiled(seam);
+  assert.ok(seam.map && sh.fragmentShader.indexOf('#include <map_fragment>') < sh.fragmentShader.indexOf('texture2D(uDetail'), sh.fragmentShader);
+  assert.ok(sh.fragmentShader.includes('#define DETAIL_NORMAL') && sh.uniforms.uDetailNormal.value, 'its normal map');
+  assert.ok(sh.vertexShader.includes('vDetail = vec2('), "the face's lines per vertex");
+  assert.ok(['metal.ktx2', 'concrete.ktx2'].every(f => asked.includes(f)), asked.join());
+  // the same model in Päris has no detail
+  assert.ok(roleMaterials(sceneOf(real.built), 'roof').every(m => !m.userData.detail));
+});
+
+test('Foto: on two storeys every band\'s cladding and chimney is dressed, the bands\' own copies included', async () => {
+  const two = loadModel('fixture-twostorey.md');
+  const { built, ctx, byId } = buildAll({ ...options, style: 'photo' }, two);
+  const scene = sceneOf(built);
+  await ctx.look.start({ load, done() {}, scene });
+  const bands = rootsOf(byId.building);
+  assert.ok(bands.length >= 3, 'the group and two bands');
+  bands.forEach((r, i) => {
+    const ms = ['cladding', 'chimney'].flatMap(role => roleMaterials(r, role));
+    assert.ok(ms.length > 0, `band ${i}`);
+    ms.forEach(m => assert.ok(m.userData.detail, `band ${i} ${m.userData.role}`));
+  });
+});
+
+test('Foto: the boarded cladding, the deck and the timber in wood, its grain along the boards, the colour the model\'s on average', async () => {
+  const { built, ctx } = photo();
+  const scene = sceneOf(built);
+  await ctx.look.start({ load, done() {}, scene });
+  const photoOf = m => DETAILS[m.userData.detail.key].map;
+  ['deck', 'timber'].forEach(role => assert.ok(roleMaterials(scene, role).every(m => photoOf(m) === 'wood.ktx2'), role));
+  const clad = roleMaterials(scene, 'cladding');
+  assert.ok(clad.every(m => m.userData.detail.key === 'cladding-boards' && photoOf(m) === 'wood.ktx2'));
+  const { uniforms, fragmentShader } = compiled(clad[0]);
+  // at the fixture's 45 degrees the grain runs up the boards
+  assert.ok(Math.abs(uniforms.uDetailAxis.value.x - Math.SQRT1_2) < 1e-9 && Math.abs(uniforms.uDetailAxis.value.y - Math.SQRT1_2) < 1e-9);
+  // the shader divides out the photograph's mean: times its gain, the mean comes back to one
+  const gain = uniforms.uDetailGain.value.toArray();
+  DETAILS['cladding-boards'].mean.forEach((mean, i) => assert.ok(Math.abs(mean * gain[i] - 1) < 1e-9, `${mean} ${gain[i]}`));
+  assert.ok(fragmentShader.includes('texture2D(uDetail, dUv).rgb * uDetailGain'));
+  // one program for every dressed surface of a variant: the role is in the uniforms
+  assert.equal(clad[0].customProgramCacheKey(), roleMaterials(scene, 'deck')[0].customProgramCacheKey());
+});
+
+test('Foto: the light tier dresses the house without normal maps', async () => {
+  const { built, ctx } = photo({ quality: 'low' });
+  const scene = sceneOf(built), asked = [];
+  await ctx.look.start({ load: f => (asked.push(f), load()), done() {}, scene });
+  assert.ok(asked.includes('wood.ktx2') && !asked.some(f => f.includes('normal')), asked.join());
+  const clad = roleMaterials(scene, 'cladding');
+  assert.ok(clad.length && clad.every(m => m.userData.detail && !m.userData.detail.normal));
+  assert.ok(!compiled(clad[0]).fragmentShader.includes('#define DETAIL_NORMAL'));
+});
+
+test('Foto: the lawn and the sky do not wait for the house\'s photographs', async () => {
+  const { built, ctx, byId } = photo();
+  const scene = sceneOf(built);
+  let release, done = 0, first;
+  const held = new Promise(r => { release = r; }), firstDone = new Promise(r => { first = r; });
+  const detail = new Set(Object.values(DETAILS).flatMap(d => [d.map, d.normal]));
+  const started = ctx.look.start({ load: f => (detail.has(f) ? held.then(load) : load()), done: () => { done++; first(); }, scene });
+  await firstDone;
+  const lawn = byId.ground.group.children.find(o => o.geometry.type === 'ShapeGeometry').material;
+  assert.equal(done, 1);
+  assert.equal(lawn.map, lawn.userData.photo.map, 'the lawn is dressed');
+  assert.ok(roleMaterials(scene, 'cladding').every(m => !m.userData.detail), 'the house not yet');
+  release();
+  await started;
+  assert.equal(done, 2);
+  assert.ok(roleMaterials(scene, 'cladding').every(m => m.userData.detail));
+});
+
+test('Foto: a photograph that fails leaves its surfaces as Päris draws them', async () => {
+  const { built, ctx } = photo();
+  const scene = sceneOf(built);
+  await ctx.look.start({ load: f => (f === 'wood.ktx2' ? Promise.reject(new Error('404')) : load()), done() {}, scene });
+  assert.ok(roleMaterials(scene, 'cladding').every(m => !m.userData.detail));
+  assert.ok(roleMaterials(scene, 'roof').every(m => m.userData.detail));
 });

@@ -1,6 +1,6 @@
 # ADR-001: The 3D view is our own three.js engine over the measured house model
 
-- **Status:** Accepted (2026-11-27)
+- **Status:** Accepted (2026-11-28)
 - **Related:** [estate ADR-001](https://github.com/khelias/khe-architecture/blob/main/decisions/001-repo-per-product.md), [estate ADR-012](https://github.com/khelias/khe-architecture/blob/main/decisions/012-estate-architecture-is-public.md), [estate ADR-043](https://github.com/khelias/khe-architecture/blob/main/decisions/043-household-parts-are-public-source-built-into-khe-sites.md), [estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)
 
 ## Context
@@ -92,11 +92,16 @@ JSON:
    and khe-makett each carry a pinned, checked copy of the engine, written
    by this repo's copy script, which travels in the copy
    ([estate ADR-052](https://github.com/khelias/khe-architecture/blob/main/decisions/052-the-3d-house-engine-has-a-repo-of-its-own.md)).
-6. **A house's look is model data** (amended 2026-11-27). Each style has a
+6. **A house's look is model data** (amended 2026-11-28). Each style has a
    look of its own that gives its materials by role, its sky and its light:
    the simple wireframe, Päris (`real`) and Foto (`photo`), which is Päris
    with a photographed lawn, meadow past the lot, street, paving and sky
-   (the paving in the model's own colour), leaf cards on the crowns and
+   (the paving in the model's own colour), the house's own surfaces under a
+   photographed grain (wood on the boarded cladding, the deck and the
+   timber, concrete on a plain wall, the chimneys and a plinth the look
+   names a surface for, painted
+   metal or fired clay on the roofs) multiplied over Päris's boards, seams
+   and tiles in the model's own colour on average, leaf cards on the crowns and
    hedges, in winter bare branches with twig cards under an overcast sky,
    and a light tier for weaker devices. A look may dress a tree's crown and
    its bare crown, a hedge and the ground past the lot (`look.js` lists the
