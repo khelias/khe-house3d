@@ -239,6 +239,8 @@ test('Foto: start() dresses the house\'s cladding, roof, chimney, deck and timbe
   assert.ok(sh.fragmentShader.includes('#define DETAIL_NORMAL') && sh.uniforms.uDetailNormal.value, 'its normal map');
   assert.ok(sh.vertexShader.includes('vDetail = vec2('), "the face's lines per vertex");
   assert.ok(['metal.ktx2', 'concrete.ktx2'].every(f => asked.includes(f)), asked.join());
+  // only what the house's roles take: no clay without tiles, no wood without boards, a deck or timber
+  assert.ok(!asked.includes('clay.ktx2'), asked.join());
   // the same model in Päris has no detail
   assert.ok(roleMaterials(sceneOf(real.built), 'roof').every(m => !m.userData.detail));
 });
@@ -328,4 +330,31 @@ test('Foto: the car in a clearcoated lacquer and reflective glass, faded like P�
   ctx.kit.applyFade(byId.car.group, 0.4);
   assert.ok(Math.abs(foto.body.material.opacity - 0.4) < 1e-9 && foto.body.material.transparent, 'the body fades');
   assert.ok(foto.panes.every(p => Math.abs(p.material.opacity - 0.6 * 0.4) < 1e-9), 'and the glass');
+});
+
+test('Foto: the rooms\' oak floor, an instanced worktop, the sofa and the splashback under their photographs, without normal maps', async () => {
+  const { built, ctx, byId } = photo({ layers: { interior: true } });
+  const scene = sceneOf(built);
+  await ctx.look.start({ load, done() {}, scene });
+  const want = { floor: 'oak.ktx2', worktop: 'concrete.ktx2', sofa: 'fabric.ktx2' };
+  Object.entries(want).forEach(([role, file]) => {
+    const ms = roleMaterials(scene, role);
+    assert.ok(ms.length > 0, role);
+    ms.forEach(m => {
+      assert.equal(DETAILS[m.userData.detail.key].map, file, role);
+      assert.equal(m.userData.detail.normal, false, `${role}: no normal map indoors`);
+    });
+  });
+  // the worktop is an instanced unit box: the projection takes each instance's own frame
+  const top = [];
+  byId.interior.group.traverse(o => { if (o.isInstancedMesh && o.material.userData.role === 'worktop') top.push(o); });
+  assert.ok(top.length > 0, 'an instanced worktop');
+  assert.ok(compiled(top[0].material).vertexShader.includes('dPos = instanceMatrix * dPos;'));
+  // the floors keep Päris's planks under the grain
+  assert.ok(roleMaterials(scene, 'floor').every(m => m.map));
+  // the demo house's kitchen splashback keeps its tiles under a faint mottle
+  const demo = buildAll({ ...options, style: 'photo' }, loadModel('fixture-demo.md')), demoScene = sceneOf(demo.built);
+  await demo.ctx.look.start({ load, done() {}, scene: demoScene });
+  const splash = roleMaterials(demoScene, 'splash');
+  assert.ok(splash.length && splash.every(m => m.map && m.userData.detail.key === 'splash'));
 });

@@ -106,7 +106,9 @@ JSON:
    photographed grain (wood on the boarded cladding, the deck and the
    timber, concrete on a plain wall, the chimneys and a plinth the look
    names a surface for, painted
-   metal or fired clay on the roofs) multiplied over Päris's boards, seams
+   metal or fired clay on the roofs; inside, oak on the floors, the skirting
+   and the oak furniture, a woven fabric on the sofas and beds, a stone-like
+   mottle on the worktops and a faint one on the tiles) multiplied over Päris's boards, seams, planks
    and tiles in the model's own colour on average, leaf cards on the crowns and
    hedges, in winter bare branches with twig cards under an overcast sky,
    and a light tier for weaker devices. A look may dress a tree's crown and
