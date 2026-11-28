@@ -84,10 +84,17 @@ test('Foto: start() puts a model in each yard thing\'s and planter\'s place, uns
     const sc = ms[0].scale;
     assert.ok(Math.abs(sc.x - sc.y) < 1e-9 && Math.abs(sc.y - sc.z) < 1e-9, 'one scale');
   });
-  // a fitted model fills its box on one side and stays within it on the others
-  const bin = items.find(o => o.userData.part === 'bin'), s = sizeOf(bin.children.find(o => o.userData.part === 'model'));
-  const fit = [0.58, 1.0, 0.74], r = [s.x / fit[0], s.y / fit[1], s.z / fit[2]];
-  assert.ok(r.every(v => v < 1 + 1e-6) && r.some(v => v > 1 - 1e-6), r.join());
+  // a fitted model fills its box on one side and stays within it on the others (props.js FIT)
+  // in the item's own frame: an item may be turned
+  const FIT = { bin: [0.58, 1.0, 0.74], garden_table: [0.9, 0.87, 1.68], pot: [0.9, 0.925, 0.9] };
+  Object.entries(FIT).forEach(([kind, fit]) => {
+    const own = items.find(o => o.userData.part === kind).children.find(o => o.userData.part === 'model').clone();
+    own.position.set(0, 0, 0);
+    own.rotation.set(0, 0, 0);
+    const s = sizeOf(own);
+    const r = [s.x / fit[0], s.y / fit[1], s.z / fit[2]];
+    assert.ok(r.every(v => v < 1 + 1e-6) && r.some(v => v > 1 - 1e-6), `${kind}: ${r.join()}`);
+  });
   // the lamp keeps the lights layer's one head per post under its cap
   const lamps = items.filter(o => o.userData.part === 'lamp_post');
   assert.equal(byId.props.api.lamps().length, lamps.length);
