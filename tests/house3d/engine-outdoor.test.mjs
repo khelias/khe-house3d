@@ -621,4 +621,11 @@ test('props layer: a lamp post\'s head glows at night through the lights layer, 
   // the lamps light even on a lot with no site.lights
   const bare = { ...withProps, site: { ...withProps.site, lights: [] } };
   assert.equal(buildAll({ ...options, style: 'real' }, bare).byId.lights.group.children.filter(o => o.userData.part === 'fixture').length, 2);
+  // a lamp post on the deck: its head rises with its post
+  const deck = model.site.decks[0], ring = Array.isArray(deck[0]) ? deck : [[deck[0], deck[1]], [deck[2], deck[3]]];
+  const on = [0, 1].map(k => ring.reduce((a, p) => a + p[k], 0) / ring.length);
+  const lit = (at, part) => buildAll({ ...options, style: 'real' }, { ...model, site: { ...model.site, lights: [], props: [{ id: 'l', kind: 'lamp_post', at }] } }).byId.lights.group.children.find(o => o.userData.part === part).position.y;
+  const mid = 2.15 + 0.14 / 2;
+  assert.ok(Math.abs(lit([24, 20], 'fixture') - mid) < 1e-9, 'on the ground');
+  assert.ok(Math.abs(lit(on, 'fixture') - mid - 0.12) < 1e-9, 'the head on the deck');
 });

@@ -357,4 +357,11 @@ test('Foto: the rooms\' oak floor, an instanced worktop, the sofa and the splash
   await demo.ctx.look.start({ load, done() {}, scene: demoScene });
   const splash = roleMaterials(demoScene, 'splash');
   assert.ok(splash.length && splash.every(m => m.map && m.userData.detail.key === 'splash'));
+  // a painted kitchen's worktop takes the paint and is still a worktop under the stone
+  const demoModel = loadModel('fixture-demo.md');
+  const painted = { ...demoModel, furniture: demoModel.furniture.map(f => (f.kind === 'base_units' ? { ...f, finish: 'anthracite' } : f)) };
+  const p = buildAll({ ...options, style: 'photo' }, painted), pScene = sceneOf(p.built);
+  await p.ctx.look.start({ load, done() {}, scene: pScene });
+  const tops = roleMaterials(pScene, 'kitchenTop');
+  assert.ok(tops.length && tops.every(m => m.color.getHexString() === p.ctx.kit.surface('anthracite').color.getHexString() && m.userData.detail.key === 'kitchenTop'));
 });
