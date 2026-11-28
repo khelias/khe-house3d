@@ -200,8 +200,9 @@ test('real style: a house-sized near-rectangle neighbour gets a gable to its hei
 test('lights layer: a fixture, halo and pool per light, lit only at night, casting nothing', () => {
   const { ctx, byId } = buildAll({ ...options, style: 'real' });
   const L = byId.lights, of = part => L.group.children.filter(o => o.userData.part === part);
-  const n = model.site.lights.length;
-  assert.equal(n, 2);
+  // the site's lights and the lamp posts' heads
+  const n = model.site.lights.length + model.site.props.filter(p => p.kind === 'lamp_post').length;
+  assert.equal(n, 3);
   assert.deepEqual(['fixture', 'halo', 'pool'].map(p => of(p).length), [n, n, n]);
   L.group.traverse(o => assert.ok(!o.castShadow, 'casts nothing'));
   const wall = of('fixture').find(o => o.geometry.type === 'BoxGeometry'), { pos: [x, , z], face: [fx, fz] } = model.site.lights[1];
@@ -563,4 +564,61 @@ test('future layer: a model without future builds nothing', () => {
   const { ctx } = makeCtx(options, m);
   assert.equal(BUILDERS[LAYERS.indexOf('future')].default(ctx), null);
   assert.equal(BUILDERS[LAYERS.indexOf('future')].default(makeCtx(options, { ...model, future: { items: [] } }).ctx), null);
+});
+
+// the fixture with one yard thing of each kind
+const PROPS = [
+  { id: 'bin_1', kind: 'bin', at: [30, -4], rot: 90 }, { id: 'mail_1', kind: 'mailbox', at: [31, -5] },
+  { id: 'table_1', kind: 'garden_table', at: [20, 20], rot: 180 }, { id: 'pot_1', kind: 'pot', at: [22, 20] },
+  { id: 'lamp_1', kind: 'lamp_post', at: [24, 20] }, { id: 'lamp_2', kind: 'lamp_post', at: [26, 20], rot: 270 }
+];
+const withProps = { ...model, site: { ...model.site, props: PROPS } };
+
+test('props layer: each kind drawn where it stands, turned, casting, in Päris and Foto; nothing in simple', () => {
+  for (const style of ['real', 'photo']) {
+    const { byId } = buildAll({ ...options, style }, withProps);
+    const items = byId.props.group.children;
+    assert.deepEqual(items.map(g => g.userData.prop), PROPS.map(p => p.id), style);
+    items.forEach((g, i) => {
+      const p = PROPS[i];
+      assert.deepEqual([g.position.x, g.position.z], p.at, p.id);
+      // turned the way a future item turns
+      assert.ok(Math.abs(g.rotation.y + ((p.rot || 0) * Math.PI) / 180) < 1e-9, `${p.id} turned`);
+      // one mesh per material: the parts never move, so they are one draw each
+      const mats = g.children.map(o => o.material);
+      assert.ok(g.children.length > 0 && g.children.every(m => m.isMesh && m.castShadow && m.material.isMeshStandardMaterial), `${p.id} ${style}`);
+      assert.equal(new Set(mats).size, mats.length, `${p.id} merged by material`);
+    });
+    // the table and chairs in one mesh of timber: Foto dresses them as wood
+    assert.equal(items[2].children.length, 1);
+    assert.equal(items[2].children[0].material.userData.role, 'timber');
+  }
+  assert.equal(buildAll({ ...options }, withProps).byId.props.group.children.length, 0, 'the simple style draws none');
+  // a thing on a deck stands on its boards
+  const deck = model.site.decks[0], ring = Array.isArray(deck[0]) ? deck : [[deck[0], deck[1]], [deck[2], deck[3]]];
+  const on = [0, 1].map(k => ring.reduce((a, p) => a + p[k], 0) / ring.length);
+  const decked = { ...model, site: { ...model.site, props: [{ id: 't', kind: 'garden_table', at: on }] } };
+  assert.ok(Math.abs(buildAll({ ...options, style: 'real' }, decked).byId.props.group.children[0].position.y - 0.12) < 1e-9, 'on the deck');
+  const none = { ...model, site: { ...model.site, props: [] } };
+  assert.equal(buildAll({ ...options, style: 'real' }, none).byId.props, undefined, 'a model without props has no layer');
+});
+
+test('props layer: a lamp post\'s head glows at night through the lights layer, its pool under it', () => {
+  const { byId, ctx } = buildAll({ ...options, style: 'real' }, withProps);
+  const L = byId.lights, of = part => L.group.children.filter(o => o.userData.part === part);
+  const n = model.site.lights.length;
+  assert.equal(of('fixture').length, n + 2, 'one head per lamp post');
+  assert.equal(of('pool').length, n + 2);
+  const pool = of('pool')[n];
+  assert.deepEqual([pool.position.x, pool.position.z], PROPS[4].at, 'the pool under the first lamp');
+  const head = of('fixture')[n];
+  assert.ok(head.position.y > 2 && head.position.x === 24, 'the head at the pole\'s top');
+  L.update(1, 1);
+  assert.equal(head.material.emissiveIntensity, 0, 'dark by day');
+  ctx.state.night = 1;
+  L.update(1, 1);
+  assert.ok(head.material.emissiveIntensity > 0 && pool.visible && pool.material.opacity > 0, 'lit at night');
+  // the lamps light even on a lot with no site.lights
+  const bare = { ...withProps, site: { ...withProps.site, lights: [] } };
+  assert.equal(buildAll({ ...options, style: 'real' }, bare).byId.lights.group.children.filter(o => o.userData.part === 'fixture').length, 2);
 });

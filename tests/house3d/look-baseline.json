@@ -156,6 +156,16 @@
   "Mesh planter: MeshStandardMaterial #383e42 #000000 0.85 0 1 transparent=false side=0",
   "Mesh : MeshStandardMaterial #44633d #000000 0.85 0 1 transparent=false side=0"
  ],
+ "props": [
+  "Mesh : MeshStandardMaterial #3b3d40 #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #1c1d1f #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #4a4d50 #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #3b3d40 #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #8a6a4c #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #d4cec4 #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #44633d #000000 0.85 0 1 transparent=false side=0",
+  "Mesh : MeshStandardMaterial #3b3d40 #000000 0.85 0 1 transparent=false side=0"
+ ],
  "trees": [
   "Mesh crown: MeshStandardMaterial #5d7c4b #000000 0.85 0 1 transparent=false side=0",
   "Mesh trunk: MeshStandardMaterial #5b4636 #000000 0.85 0 1 transparent=false side=0",
@@ -722,6 +732,9 @@
   "Mesh furniture: MeshStandardMaterial #d6c2a2 #000000 0.85 0 1 transparent=false side=0"
  ],
  "lights": [
+  "Mesh fixture: MeshStandardMaterial #383e42 #ffcf8a 0.85 0 1 transparent=false side=0",
+  "Sprite halo: SpriteMaterial #ffffff - - - 0 transparent=true side=0 map=1009 1,1 0,0 -",
+  "Mesh pool: MeshBasicMaterial #ffffff - - - 0 transparent=true side=0 map=1009 1,1 0,0 -",
   "Mesh fixture: MeshStandardMaterial #383e42 #ffcf8a 0.85 0 1 transparent=false side=0",
   "Sprite halo: SpriteMaterial #ffffff - - - 0 transparent=true side=0 map=1009 1,1 0,0 -",
   "Mesh pool: MeshBasicMaterial #ffffff - - - 0 transparent=true side=0 map=1009 1,1 0,0 -",

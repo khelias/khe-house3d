@@ -27,7 +27,8 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   shadows beside it, and scans the result;
   `--scan [--count] MODEL PATH...` scans files for a model's private data.
 - `scripts/house3d-place.py serve MODEL` serves `house3d/place.html` for
-  moving devices, trees and future items and writes the changes back;
+  moving devices, trees and future items and adding, moving and removing
+  yard things, and writes the changes back;
   `scripts/house3d-surroundings.py` writes a surroundings layer from ETAK;
   `scripts/house3d-vendor.sh <version>` vendors a three.js release.
 - `house3d/assets/` holds Foto's textures, encoded from the sources in its

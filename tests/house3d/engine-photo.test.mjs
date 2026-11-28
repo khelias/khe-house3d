@@ -311,3 +311,21 @@ test('Foto: a photograph that fails leaves its surfaces as Päris draws them', a
   assert.ok(roleMaterials(scene, 'cladding').every(m => !m.userData.detail));
   assert.ok(roleMaterials(scene, 'roof').every(m => m.userData.detail));
 });
+
+test('Foto: the car in a clearcoated lacquer and reflective glass, faded like Päris\'s; Päris\'s car as it was', () => {
+  const car = L => {
+    const meshes = [];
+    L.group.traverse(o => { if (o.isMesh) meshes.push(o); });
+    return { body: meshes.find(o => o.renderOrder === 2), panes: meshes.filter(o => o.renderOrder === 3), tyres: meshes.filter(o => o.geometry.type === 'CylinderGeometry') };
+  };
+  const real = car(buildAll({ ...options, style: 'real' }).byId.car), { byId, ctx } = photo();
+  const foto = car(byId.car);
+  assert.ok(foto.body.material.isMeshPhysicalMaterial && foto.body.material.clearcoat > 0, 'the lacquer');
+  assert.ok(foto.panes.every(m => m.material.roughness < 0.1 && m.material.color.getHSL({}).l < real.panes[0].material.color.getHSL({}).l), 'the glass a darker polished tint');
+  assert.ok(!real.body.material.isMeshPhysicalMaterial && real.body.material.color.equals(foto.body.material.color), 'Päris keeps its paint, in the same colour');
+  // the tyres are their own material in every lit style, in the car's colour
+  [real, foto].forEach(c => assert.ok(c.tyres.length === 4 && c.tyres.every(t => t.material !== c.body.material && t.material.color.equals(c.body.material.color))));
+  ctx.kit.applyFade(byId.car.group, 0.4);
+  assert.ok(Math.abs(foto.body.material.opacity - 0.4) < 1e-9 && foto.body.material.transparent, 'the body fades');
+  assert.ok(foto.panes.every(p => Math.abs(p.material.opacity - 0.6 * 0.4) < 1e-9), 'and the glass');
+});

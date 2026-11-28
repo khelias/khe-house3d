@@ -48,7 +48,7 @@ JSON:
    CC0 textures in KTX2 with their sources listed beside them, decoded by
    three.js's own Basis transcoder; a consumer that does not want them
    leaves them out of its copy.
-4. **The model format holds other houses too** (amended 2026-11-27). Besides
+4. **The model format holds other houses too** (amended 2026-11-28). Besides
    the shed roofs of this house, a roof can be hip, gable or flat, made of
    wings: plan rectangles with one eave height and one pitch, each running
    into the next, the surface being the highest wing, which gives an L or T
@@ -86,6 +86,11 @@ JSON:
    smallest enclosing rectangle a gable along that rectangle's long side,
    its ridge at the height, and leaves any other a block. LOD2 3D buildings
    (point 6) remain the source should a neighbour's real roof matter.
+   Everyday things in the yard are `site.props` (amended 2026-11-28): a bin,
+   a mailbox, a garden table with chairs, a flower pot and a lamp post by
+   id, at a point, turned in quarter turns like a future item, drawn in the
+   lit styles as simple shapes; a lamp post's head glows at dusk with the
+   site's lights. The placement page adds, moves, turns and removes them.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
    and the made-up test houses. khe-home-assistant keeps the HA card, and it
@@ -96,7 +101,8 @@ JSON:
    look of its own that gives its materials by role, its sky and its light:
    the simple wireframe, Päris (`real`) and Foto (`photo`), which is Päris
    with a photographed lawn, meadow past the lot, street, paving and sky
-   (the paving in the model's own colour), the house's own surfaces under a
+   (the paving in the model's own colour), a lacquered car under reflective
+   glass, the house's own surfaces under a
    photographed grain (wood on the boarded cladding, the deck and the
    timber, concrete on a plain wall, the chimneys and a plinth the look
    names a surface for, painted

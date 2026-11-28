@@ -64,6 +64,12 @@
    "LineSegments 0 m10"
   ]
  },
+ "props": {
+  "materials": {},
+  "objects": [
+   "Group 0"
+  ]
+ },
  "trees": {
   "materials": {
    "m0": "MeshBasicMaterial #123b45 0.2 transparent=true depthWrite=false side=0",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Place the house 3D model's devices, trees and future items on a 2D plan, and write the result back.
+"""Place the house 3D model's devices, trees, yard things and future items on a 2D plan, and write the
+result back.
 
 Usage:  house3d-place.py serve MODEL [PORT]         serve the placement page on 127.0.0.1
         house3d-place.py apply MODEL CHANGES.json   write the page's changes into MODEL
@@ -11,13 +12,16 @@ port 8731.
 
 apply takes the JSON the page's "Kopeeri muudatused" button copies,
 {"devices": {entity: {pos, look?, room}}, "trees": {id: {pos, height, crown}},
-"future": {id: {pos, rot?}}}, each group only when it has changes, from a file or from stdin
-with '-' (pbpaste | ... apply MODEL -). It rewrites those devices' lines in the private block,
-those trees' lines in the geometry block's "trees" list and those future items' lines in the
-private block's "items" list (positions and rot only; size and numbers stay hand edits), one
-item per line as before, and writes the file once. Any other shape, an unknown entity, tree
-or item, a changed device height, a tree size that is not a positive number or a model that
-no longer validates (a pv item moved off its roof) stops it before writing.
+"future": {id: {pos, rot?}}, "props": {id: {kind, at, rot} | null}}, each group only when it
+has changes, from a file or from stdin with '-' (pbpaste | ... apply MODEL -). It rewrites those
+devices' lines in the private block, those trees' lines in the geometry block's "trees" list and
+those future items' lines in the private block's "items" list (positions and rot only; size and
+numbers stay hand edits), one item per line as before; a yard thing it writes by id into the
+geometry block's "props" list, adding one that is new, removing one given null and opening the
+list in site when the model has none. It writes the file once. Any other shape, an unknown
+entity, tree, item or removed yard thing, a changed device height, a tree size that is not a
+positive number or a model that no longer validates (a pv item moved off its roof, a yard thing
+outside the lot) stops it before writing.
 """
 
 import functools
@@ -35,7 +39,8 @@ PRIVATE = "```json house3d:private"
 GEOMETRY = "```json house3d:geometry"
 SHAPE = (
     'changes must be {"devices": {entity: {pos: [x, y, z], look?, room?}}, '
-    '"trees": {id: {pos: [x, z], height, crown}}, "future": {id: {pos: [x, z], rot?}}}, '
+    '"trees": {id: {pos: [x, z], height, crown}}, "future": {id: {pos: [x, z], rot?}}, '
+    '"props": {id: {kind, at: [x, z], rot?} | null}}, '
     "each group only when it has changes, as the page copies them"
 )
 
@@ -85,7 +90,7 @@ def parse_changes(raw):
     if not (
         isinstance(changes, dict)
         and changes
-        and set(changes) <= {"devices", "trees", "future"}
+        and set(changes) <= {"devices", "trees", "future", "props"}
         and all(isinstance(g, dict) for g in changes.values())
     ):
         sys.exit(SHAPE)
@@ -103,8 +108,19 @@ def parse_changes(raw):
     for fid, c in changes.get("future", {}).items():
         if not (isinstance(c, dict) and house3d_model._point(c.get("pos"))):
             sys.exit(f"future item {fid}: pos is not two numbers [x, z]; {SHAPE}")
-        if "rot" in c and c["rot"] not in house3d_model.FUTURE_ROT:
+        if "rot" in c and c["rot"] not in house3d_model.QUARTER_TURNS:
             sys.exit(f"future item {fid}: rot {c['rot']!r} is not one of 0, 90, 180, 270")
+    for pid, c in changes.get("props", {}).items():
+        if c is None:
+            continue
+        if not (isinstance(c, dict) and house3d_model._point(c.get("at"))):
+            sys.exit(f"yard thing {pid}: at is not two numbers [x, z]; {SHAPE}")
+        if c.get("kind") not in house3d_model.PROP_KINDS:
+            sys.exit(
+                f"yard thing {pid}: kind {c.get('kind')!r} is not one of {', '.join(house3d_model.PROP_KINDS)}"
+            )
+        if c.get("rot", 0) not in house3d_model.QUARTER_TURNS:
+            sys.exit(f"yard thing {pid}: rot {c['rot']!r} is not one of 0, 90, 180, 270")
     return changes
 
 
@@ -117,14 +133,31 @@ def block(lines, fence, path):
     return range(start + 1, end)
 
 
+def line_of(indent, item, comma):
+    """One item of a one-item-per-line list as apply writes it."""
+    return (
+        indent
+        + json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+        + ("," if comma else "")
+    )
+
+
+def indent_of(line):
+    return line[: len(line) - len(line.lstrip())]
+
+
 def rewrite(lines, i, item):
     """Write item over line i, keeping its indent and trailing comma."""
     line = lines[i].rstrip()
-    indent = line[: len(line) - len(line.lstrip())]
-    lines[i] = (
-        indent
-        + json.dumps(item, ensure_ascii=False, separators=(",", ":"))
-        + ("," if line.endswith(",") else "")
+    lines[i] = line_of(indent_of(line), item, line.endswith(","))
+
+
+def turned(old, new):
+    """The report's note of a quarter turn, empty when it did not turn."""
+    return (
+        f", rot {old.get('rot', 0)} -> {new.get('rot', 0)}"
+        if old.get("rot", 0) != new.get("rot", 0)
+        else ""
     )
 
 
@@ -162,9 +195,10 @@ def apply_devices(lines, changes, path, report):
     return len(seen)
 
 
-def list_items(lines, fence, anchor, what, path):
+def list_items(lines, fence, anchor, what, path, with_start=False):
     """(line index, item) for each line of a one-item-per-line JSON list that opens with the
-    line `anchor` alone in the block `fence` and closes with a ] line."""
+    line `anchor` alone in the block `fence` and closes with a ] line; with_start, (the anchor's
+    line index, that list)."""
     rows = block(lines, fence, path)
     start = next((i for i in rows if lines[i].strip() == anchor), None)
     if start is None:
@@ -175,7 +209,7 @@ def list_items(lines, fence, anchor, what, path):
     for i in range(start + 1, rows.stop):
         text = lines[i].strip()
         if text in ("]", "],"):
-            return out
+            return (start, out) if with_start else out
         try:
             item = json.loads(text.rstrip(","))
         except ValueError:
@@ -219,18 +253,75 @@ def apply_future(lines, changes, path, report):
             item["rot"] = new["rot"]
         rewrite(lines, i, item)
         seen.add(item["id"])
-        turned = (
-            f", rot {old.get('rot', 0)} -> {item['rot']}"
-            if item.get("rot", 0) != old.get("rot", 0)
-            else ""
-        )
         report.append(
-            f"future item {item['id']}: moved {math.dist(old['pos'], item['pos']):.2f} m{turned}"
+            f"future item {item['id']}: moved {math.dist(old['pos'], item['pos']):.2f} m{turned(old, item)}"
         )
     unknown = sorted(set(changes) - seen)
     if unknown:
         sys.exit("not in the private block's future items list: " + ", ".join(unknown))
     return len(seen)
+
+
+def prop_line(pid, c):
+    """A yard thing as the list writes it: rot only when it turns."""
+    return {
+        "id": pid,
+        "kind": c["kind"],
+        "at": c["at"],
+        **({"rot": c["rot"]} if c.get("rot") else {}),
+    }
+
+
+def apply_props(lines, changes, path, report):
+    """Write the yard things by id into the geometry block's props list, opening one in site;
+    the lines of the things left as they were stay as they were."""
+    anchor = '"props": ['
+    rows = block(lines, GEOMETRY, path)
+    # a props key written any other way would stay beside a new list and hide it
+    if any(lines[i].strip().startswith('"props":') and lines[i].strip() != anchor for i in rows):
+        sys.exit(
+            f"{path}: the props list must open with a line {anchor} alone, one yard thing per line"
+        )
+    if not any(lines[i].strip() == anchor for i in rows):
+        site = next((i for i in rows if lines[i].strip() == '"site": {'), None)
+        if site is None:
+            sys.exit(f'{path}: no line "site": {{ alone in the {GEOMETRY} block for the props list')
+        after = lines[site + 1].strip()
+        indent = (
+            indent_of(lines[site + 1])
+            if not after.startswith("}")
+            else indent_of(lines[site]) + " "
+        )
+        lines[site + 1 : site + 1] = [
+            indent + anchor,
+            indent + ("]" if after.startswith("}") else "],"),
+        ]
+    start, items = list_items(lines, GEOMETRY, anchor, "yard thing", path, with_start=True)
+    indent = indent_of(lines[start]) + " "
+    # each line of the new list without its comma: the old line for an untouched thing
+    kept = []
+    for i, item in items:
+        new = changes.get(item["id"], item)
+        if new is item:
+            kept.append(lines[i].rstrip().rstrip(","))
+        elif new is None:
+            report.append(f"yard thing {item['id']}: removed")
+        else:
+            moved = math.dist(item["at"], new["at"])
+            report.append(f"yard thing {item['id']}: moved {moved:.2f} m{turned(item, new)}")
+            kept.append(line_of(indent, prop_line(item["id"], new), False))
+    known = {item["id"] for _, item in items}
+    for pid, new in changes.items():
+        if pid in known:
+            continue
+        if new is None:
+            sys.exit(f"yard thing {pid}: not in the geometry block's props list, so not removed")
+        kept.append(line_of(indent, prop_line(pid, new), False))
+        report.append(f"yard thing {pid}: added")
+    lines[start + 1 : start + 1 + len(items)] = [
+        line + ("," if k < len(kept) - 1 else "") for k, line in enumerate(kept)
+    ]
+    return len(changes)
 
 
 def apply(model_path, changes_path):
@@ -246,6 +337,7 @@ def apply(model_path, changes_path):
     devices = apply_devices(lines, changes["devices"], path, report) if "devices" in changes else 0
     trees = apply_trees(lines, changes["trees"], path, report) if "trees" in changes else 0
     future = apply_future(lines, changes["future"], path, report) if "future" in changes else 0
+    props = apply_props(lines, changes["props"], path, report) if "props" in changes else 0
     text = "\n".join(lines)
     checked(house3d_model.parse_layers(text))
     path.write_text(text, encoding="utf-8")
@@ -253,7 +345,7 @@ def apply(model_path, changes_path):
         "\n".join(
             report
             + [
-                f"{devices} device(s), {trees} tree(s) and {future} future item(s) written to {path}"
+                f"{devices} device(s), {trees} tree(s), {props} yard thing(s) and {future} future item(s) written to {path}"
             ]
         )
     )

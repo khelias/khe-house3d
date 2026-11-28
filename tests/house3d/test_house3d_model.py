@@ -467,7 +467,20 @@ def _mirror_on_floor(L):
     f.update(kind="mirror", y=[0, 1.8])
 
 
+def _props(L, *changes):
+    _site(L)["props"] = [{"id": "bin_1", "kind": "bin", "at": [2, -4]}, {"id": "lamp_1", "kind": "lamp_post", "at": [3, -4], "rot": 90}]
+    for i, change in changes:
+        _site(L)["props"][i].update(change)
+
+
 MUTATIONS = [
+    ("props not a list", lambda L: _site(L).update(props={"id": "x"}), "site.props: not a list"),
+    ("a prop without an id", lambda L: _props(L, (0, {"id": ""})), "site.props[0]: id is not a non-empty string"),
+    ("two props of one id", lambda L: _props(L, (1, {"id": "bin_1"})), "site.props: id 'bin_1' is not unique"),
+    ("a prop of no known kind", lambda L: _props(L, (0, {"kind": "gnome"})), "site.props[0]: kind 'gnome' is not one of bin, mailbox"),
+    ("a prop without at", lambda L: _props(L, (0, {"at": [2]})), "site.props[0]: at must be [x, z]"),
+    ("a prop outside the lot", lambda L: _props(L, (0, {"at": [2, -9]})), "site.props[0]: at is outside the lot"),
+    ("a prop turned 45", lambda L: _props(L, (1, {"rot": 45})), "site.props[1]: rot 45 is not one of 0, 90, 180, 270"),
     ("window without sill", _no_sill, "a window needs a sill"),
     ("unknown opening kind", _bad_kind, "is not window, door or glassdoor"),
     ("garage_roof with rect and rects", _both, "site.garage_roof: needs either rect or rects"),
@@ -565,6 +578,11 @@ MUTATIONS = [
 
 
 class Mutations(unittest.TestCase):
+    def test_props_of_every_kind_validate(self):
+        L = layers()
+        _site(L)["props"] = [{"id": f"p{i}", "kind": k, "at": [2 + i, 2], "rot": [0, 90, 180, 270][i % 4]} for i, k in enumerate(hm.PROP_KINDS)]
+        self.assertEqual([p for p in hm.validate(L) if "props" in p], [])
+
     def test_each_mutation_reports_its_problem(self):
         base = layers()
         for name, mutate, problem in MUTATIONS + LOOK_MUTATIONS:
