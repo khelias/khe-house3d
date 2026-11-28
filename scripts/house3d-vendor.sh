@@ -23,6 +23,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="$ROOT_DIR/house3d/vendor/three-$VERSION"
 ADDONS=(
   controls/OrbitControls.js
+  loaders/GLTFLoader.js
   loaders/KTX2Loader.js
   postprocessing/EffectComposer.js
   postprocessing/RenderPass.js

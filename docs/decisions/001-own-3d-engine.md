@@ -43,11 +43,17 @@ JSON:
    fails on any private string in its output.
 3. **three.js is vendored**, versioned by directory, with no CDN (the view
    must work with the internet down) and no bundler (the code is served as
-   static ES modules from HA's `/local`) (amended 2026-11-26). The Foto
+   static ES modules from HA's `/local`) (amended 2026-11-28). The Foto
    style's photographed surfaces and skies travel with the engine too, as
    CC0 textures in KTX2 with their sources listed beside them, decoded by
    three.js's own Basis transcoder; a consumer that does not want them
-   leaves them out of its copy.
+   leaves them out of its copy. So do its models of the yard things and
+   plants: CC0 downloads reduced in Blender, or built there to a real
+   product's measurements where no CC0 model exists, each within 6000
+   triangles and two materials, as quantised glTF that three.js's own
+   GLTFLoader reads without a decoder. A model carries geometry only, its
+   maps KTX2 files beside it, because khe.ee's CSP refuses the `blob:` URL
+   an embedded image becomes.
 4. **The model format holds other houses too** (amended 2026-11-28). Besides
    the shed roofs of this house, a roof can be hip, gable or flat, made of
    wings: plan rectangles with one eave height and one pitch, each running
@@ -89,8 +95,8 @@ JSON:
    Everyday things in the yard are `site.props` (amended 2026-11-28): a bin,
    a mailbox, a garden table with chairs, a flower pot and a lamp post by
    id, at a point, turned in quarter turns like a future item, drawn in the
-   lit styles as simple shapes; a lamp post's head glows at dusk with the
-   site's lights. The placement page adds, moves, turns and removes them.
+   lit styles as simple shapes, which Foto replaces with models (point 3);
+   a lamp post's head glows at dusk with the site's lights. The placement page adds, moves, turns and removes them.
 5. **The engine has a repo of its own** (amended 2026-11-24). It moved here
    from khe-home-assistant with the format, the validator, the viewer build
    and the made-up test houses. khe-home-assistant keeps the HA card, and it
@@ -111,9 +117,12 @@ JSON:
    mottle on the worktops and a faint one on the tiles) multiplied over Päris's boards, seams, planks
    and tiles in the model's own colour on average, leaf cards on the crowns and
    hedges, in winter bare branches with twig cards under an overcast sky,
+   models in place of the yard things, the planters' plants and the indoor
+   plants, in their own photographed colours but the garden table's and the
+   thuja's, which take the model's timber and hedge,
    and a light tier for weaker devices. A look may dress a tree's crown and
-   its bare crown, a hedge and the ground past the lot (`look.js` lists the
-   hooks). A layer asks its look and
+   its bare crown, a hedge and the ground past the lot, and put a model in
+   an item's place (`look.js` lists the hooks). A layer asks its look and
    branches only on whether the style is lit, so a new style is a new look,
    not a branch in every layer; the studio stage is Päris's in every lit
    style. The lit styles' finishes are the model's `look` in its geometry layer: colours and

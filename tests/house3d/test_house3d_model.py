@@ -986,6 +986,17 @@ class BuildAndScan(unittest.TestCase):
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertIn(f"private string {entity!r}", r.stdout)
 
+    def test_scan_reads_a_binary_gltfs_names(self):
+        entity = layers()["private"]["devices"][0]["entity"]
+        with tempfile.TemporaryDirectory() as tmp:
+            body = json.dumps({"asset": {"version": "2.0"}, "nodes": [{"name": entity}]}).encode()
+            body += b" " * (-len(body) % 4)
+            f = Path(tmp) / "x.glb"
+            f.write_bytes(b"glTF" + (2).to_bytes(4, "little") + (20 + len(body)).to_bytes(4, "little") + len(body).to_bytes(4, "little") + b"JSON" + body)
+            r = run("--scan", FIXTURE, f)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn(f"private string {entity!r}", r.stdout)
+
     def test_scan_finds_a_future_item_position(self):
         x, z = next(it for it in layers()["private"]["future"]["items"] if it["id"] == "tub")["pos"]
         with tempfile.TemporaryDirectory() as tmp:

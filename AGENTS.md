@@ -30,7 +30,8 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   moving devices, trees and future items and adding, moving and removing
   yard things, and writes the changes back;
   `scripts/house3d-surroundings.py` writes a surroundings layer from ETAK;
-  `scripts/house3d-vendor.sh <version>` vendors a three.js release.
+  `scripts/house3d-vendor.sh <version>` vendors a three.js release with the
+  addons its `ADDONS` lists (GLTFLoader among them).
 - `house3d/assets/` holds Foto's textures, encoded from the sources in its
   `sources.json` with `basisu` (Homebrew `basis_universal`): colour maps and
   the leaf and twig cards ETC1S (the bare twig card is drawn for the repo, CC0),
@@ -42,6 +43,15 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
   its `clean` edge, where the panorama's smeared fill ends, read off in the viewer;
   a detail photograph's mean linear colour likewise from its source, its size
   in metres from ambientCG's dimensions.
+- `bash scripts/house3d-models.sh SCRATCH` rebuilds Foto's models into
+  `house3d/assets/` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 3):
+  it downloads the Poly Haven sources into a fresh SCRATCH, runs
+  `house3d_models.py` (the downloads reduced) and `house3d_make_models.py`
+  (the ones built to a product's measurements) in Blender over
+  `house3d_model_kit.py`, and encodes their maps as above; two runs give the
+  same bytes. A laptop step like the bake. Each model's `<item>.json` in
+  SCRATCH holds the mean colour `scene/photo.js` takes for a tinted map;
+  `engine-models.test.mjs` holds the budget.
 - `bash scripts/house3d-bake.sh MODEL_JSON OUTDIR [SIZE]` bakes a house's
   contact shadows from a viewer build's `model.json` into `bake.json` and
   `bake-ao.png` ([ADR-001](docs/decisions/001-own-3d-engine.md) point 7). A
@@ -63,8 +73,8 @@ khe-makett, carry a copy: [estate ADR-052](https://github.com/khelias/khe-archit
 house3d/           the engine: core house3d.js, scene/ (kit, sun, the marker
                    overlay, bake.js that applies a baked bake.json, look.js
                    with each style's look and photo.js with Foto's, and one
-                   module per layer), assets/ (Foto's CC0 textures as KTX2,
-                   their sources in sources.json), the standalone
+                   module per layer), assets/ (Foto's CC0 textures as KTX2
+                   and models as glTF, their sources in sources.json), the standalone
                    viewer.html, the placement page place.html, vendored
                    three.js with its Basis transcoder
 scripts/           house3d_model.py (the model format: its docstring is the
@@ -74,6 +84,9 @@ scripts/           house3d_model.py (the model format: its docstring is the
                    to bake, through the engine tests' harness) and
                    house3d_bake.py (the Blender bake), house3d-place.py,
                    house3d-surroundings.py, house3d-vendor.sh,
+                   house3d-models.sh with house3d_models.py,
+                   house3d_make_models.py and house3d_model_kit.py (Foto's
+                   models, in Blender),
                    house3d-copy.sh (a consumer's copy), house3d-test.sh,
                    check.sh
 tests/house3d/     made-up houses: the test houses (fixture-model.md, the
